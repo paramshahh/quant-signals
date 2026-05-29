@@ -653,9 +653,16 @@ body {
             <div class="dc-title">Conviction Score — Unified Composite <span class="htip-icon" data-tip="conv_title">?</span></div>
             <div class="dc-count" id="convCount">—</div>
         </div>
-        <div style="padding:8px 16px;font-size:11px;color:var(--fg3);font-family:'JetBrains Mono',monospace;line-height:1.5">
-            Robust rank-normal of every signal → 6 factor blocks → coverage shrinkage → agreement multiplier → interaction guards.
-            Blocks weighted EQUALLY for now (pending IC validation). Score is 0–100; 50 = median.
+        <div style="padding:8px 16px;font-size:11px;color:var(--fg3);font-family:'JetBrains Mono',monospace;line-height:1.6">
+            MAD robust-z per signal → 6 factor blocks (Value/Quality sector-neutral) → quality gate on Value
+            → coverage shrinkage → agreement multiplier → 0–100 (50 = median). Blocks weighted EQUALLY (pending IC validation).
+            <div style="margin-top:6px">Attribution legend:
+                <span style="color:#4f8ff7">■ Earnings</span>&nbsp;
+                <span style="color:#34d399">■ Value</span>&nbsp;
+                <span style="color:#22d3ee">■ Quality</span>&nbsp;
+                <span style="color:#f59e0b">■ Momentum</span>&nbsp;
+                <span style="color:#a78bfa">■ Flow</span>
+            </div>
         </div>
         <div class="filter-bar">
             <label>Search</label>
@@ -917,6 +924,8 @@ const TIPS = {
     conv_score: "Unified 0–100 conviction. 50 = median stock. Built from robust ranks, factor blocks, coverage shrinkage, sign-agreement, and interaction guards. Weights equal pending IC validation.",
     conv_nblocks: "How many of the 5 factor blocks (Earnings, Value, Quality, Momentum, Flow) have data for this stock. More = more reliable.",
     conv_agree: "Share of present blocks pointing the same direction as the overall score. High agreement = broad confirmation; low = the signals disagree.",
+    conv_driver: "The single factor block contributing most to this stock's score — the headline 'why'. E.g. Value = a valuation mismatch; Earn = an earnings-surprise beat.",
+    conv_attrib: "Factor attribution: each block's share of the positive drivers, color-coded (Earnings/Value/Quality/Momentum/Flow). Instantly shows whether a high score is earnings-led, value-led, momentum-led, etc.",
     b_earnings: "Earnings block: robust-rank composite of SUE (earnings surprise) and FM (fundamental momentum).",
     b_value: "Value block: robust rank of the value composite (earnings yield, book-to-price, dividend yield).",
     b_quality: "Quality block: robust rank of ROE, ROCE, low leverage, margin trend, profit consistency.",
@@ -1301,6 +1310,31 @@ function renderConviction() {
         return `<td class="r ${cls} mono">${fmt(v,2)}</td>`;
     }
 
+    // Factor attribution: which blocks drive the score, as a colored pill (top driver) + a
+    // stacked bar of each block's positive contribution share. Answers "is this 92 SUE or Value?"
+    const CONV_BLOCKS = [
+        {k:'b_earnings', label:'Earnings', short:'Earn', color:'#4f8ff7'},
+        {k:'b_value',    label:'Value',    short:'Value', color:'#34d399'},
+        {k:'b_quality',  label:'Quality',  short:'Qual',  color:'#22d3ee'},
+        {k:'b_momentum', label:'Momentum', short:'Mom',   color:'#f59e0b'},
+        {k:'b_flow',     label:'Flow',     short:'Flow',  color:'#a78bfa'},
+    ];
+    function attribution(c) {
+        const parts = CONV_BLOCKS.map(b => ({...b, z: c[b.k]})).filter(x => x.z != null && !isNaN(x.z));
+        const pos = parts.filter(x => x.z > 0);
+        const tot = pos.reduce((s, x) => s + x.z, 0);
+        const driver = pos.length ? pos.reduce((a, b) => b.z > a.z ? b : a) : null;
+        let bar = '<div style="display:flex;height:11px;width:120px;border-radius:2px;overflow:hidden;background:var(--ink3)">';
+        if (tot > 0) pos.forEach(x => {
+            bar += `<div title="${x.label}: ${x.z.toFixed(2)} (${(x.z/tot*100).toFixed(0)}%)" style="width:${(x.z/tot*100).toFixed(1)}%;background:${x.color}"></div>`;
+        });
+        bar += '</div>';
+        const pill = driver
+            ? `<span class="pill" style="background:${driver.color}22;color:${driver.color};border:1px solid ${driver.color}66">${driver.short}</span>`
+            : '<span style="color:var(--fg3)">—</span>';
+        return {pill, bar};
+    }
+
     function renderTable() {
         const search = document.getElementById('convSearch').value.toUpperCase();
         const minB = parseInt(document.getElementById('convMinBlocks').value);
@@ -1311,19 +1345,20 @@ function renderConviction() {
 
         const rows = f.slice(0,100).map((c,i)=>{
             const rank = view === 'bottom' ? f.length - i : i + 1;
-            const barW = c.conviction;
-            const barCls = c.conviction >= 50 ? 'bar-up' : 'bar-dn';
             const agr = (c.agreement*100).toFixed(0)+'%';
+            const a = attribution(c);   // {pill, bar} — the "why" behind the score
             return `<td class="mono" style="color:var(--fg3)">${rank}</td>
                 <td class="script-name">${c.symbol}</td>
                 <td class="r" style="font-weight:700;font-family:'JetBrains Mono',monospace;color:${c.conviction>=50?'var(--up)':'var(--dn)'}">${fmt(c.conviction,1)}</td>
-                <td style="width:90px"><div class="bar-wrap"><div class="bar-fill ${barCls}" style="width:${barW}%"></div></div></td>
+                <td>${a.pill}</td>
+                <td>${a.bar}</td>
                 ${blockCell(c.b_earnings)}${blockCell(c.b_value)}${blockCell(c.b_quality)}${blockCell(c.b_momentum)}${blockCell(c.b_flow)}
                 <td class="r mono">${c.n_blocks}</td>
                 <td class="r mono">${agr}</td>`;
         });
         document.getElementById('convTable').innerHTML = makeTable(
-            [{label:'#'},{label:'Symbol'},{label:'Conviction',align:'r',tip:'conv_score'},{label:''},
+            [{label:'#'},{label:'Symbol'},{label:'Conviction',align:'r',tip:'conv_score'},
+             {label:'Driver',tip:'conv_driver'},{label:'Attribution',tip:'conv_attrib'},
              {label:'Earn',align:'r',tip:'b_earnings'},{label:'Value',align:'r',tip:'b_value'},
              {label:'Qual',align:'r',tip:'b_quality'},{label:'Mom',align:'r',tip:'b_momentum'},{label:'Flow',align:'r',tip:'b_flow'},
              {label:'Blk',align:'r',tip:'conv_nblocks'},{label:'Agree',align:'r',tip:'conv_agree'}], rows
