@@ -142,6 +142,10 @@ def compute_signals():
             "Paper-trade tracker (mark top-decile book vs Nifty 500)",
             [sys.executable, "-m", "src.portfolio.paper_trade"],
         ),
+        (
+            "Market pulse (breadth + conviction history)",
+            [sys.executable, "-m", "src.portfolio.market_pulse"],
+        ),
     ]
 
     success = 0

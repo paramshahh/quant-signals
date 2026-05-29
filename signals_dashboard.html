@@ -401,7 +401,6 @@ body {
 <div class="tab-nav" id="tabs">
     <button class="tnav-btn active" data-tab="overview">Overview</button>
     <button class="tnav-btn" data-tab="conviction">Conviction</button>
-    <button class="tnav-btn" data-tab="master">MasterScore</button>
     <button class="tnav-btn" data-tab="momentum">Momentum</button>
     <button class="tnav-btn" data-tab="value">Value &amp; Quality</button>
     <button class="tnav-btn" data-tab="sue">Earnings Surprise</button>
@@ -591,35 +590,6 @@ body {
 
 </div>
 
-<!-- ══════════════════ MASTERSCORE ══════════════════ -->
-<div class="panel" id="panel-master">
-
-    <div class="data-card">
-        <div class="stat-strip" id="masterStats"></div>
-        <div class="dc-header">
-            <div class="dc-title">MasterScore — Composite Signal Ranking <span class="htip-icon" data-tip="masterscore">?</span></div>
-            <div class="dc-count" id="masterCount">—</div>
-        </div>
-        <div class="filter-bar">
-            <label>Search</label>
-            <input type="text" id="masterSearch" placeholder="Symbol...">
-            <label>Min Signals</label>
-            <select id="masterMinSig">
-                <option value="2">2+</option>
-                <option value="3">3+</option>
-                <option value="4">4+</option>
-            </select>
-            <label>View</label>
-            <select id="masterView">
-                <option value="top">Top Ranked</option>
-                <option value="bottom">Bottom Ranked</option>
-            </select>
-        </div>
-        <div id="masterTable" style="overflow-x:auto"></div>
-    </div>
-
-</div>
-
 <!-- ══════════════════ SUE ══════════════════ -->
 <div class="panel" id="panel-sue">
 
@@ -665,6 +635,17 @@ body {
             </div>
         </div>
         <div id="convPortfolio"></div>
+        <!-- Cockpit charts: market regime (breadth) + my book's conviction trend -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule);border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)">
+            <div style="background:var(--ink);padding:12px 16px">
+                <div style="font-size:10px;letter-spacing:.12em;color:var(--fg2);font-family:'JetBrains Mono';text-transform:uppercase;margin-bottom:6px">Market Mood — <span style="color:#34d399">% &gt;200DMA</span> / <span style="color:#f59e0b">% +mom</span> <span class="htip-icon" data-tip="mkt_mood">?</span></div>
+                <div style="height:150px"><canvas id="breadthChart"></canvas></div>
+            </div>
+            <div style="background:var(--ink);padding:12px 16px">
+                <div style="font-size:10px;letter-spacing:.12em;color:var(--fg2);font-family:'JetBrains Mono';text-transform:uppercase;margin-bottom:6px"><span style="color:#4f8ff7">My book</span> vs <span style="color:#6b7280">market (~50)</span> conviction <span class="htip-icon" data-tip="book_conv">?</span></div>
+                <div style="height:150px"><canvas id="bookConvChart"></canvas></div>
+            </div>
+        </div>
         <div class="filter-bar">
             <label>Search</label>
             <input type="text" id="convSearch" placeholder="Symbol...">
@@ -675,6 +656,17 @@ body {
                 <option value="4" selected>4+ blocks</option>
                 <option value="5">5 blocks (full)</option>
             </select>
+            <label>Driver</label>
+            <select id="convDriver">
+                <option value="">All drivers</option>
+                <option value="Earnings">Earnings-led</option>
+                <option value="Value">Value-led</option>
+                <option value="Quality">Quality-led</option>
+                <option value="Momentum">Momentum-led</option>
+                <option value="Flow">Flow-led</option>
+            </select>
+            <label>Sector</label>
+            <select id="convSector"><option value="">All sectors</option></select>
             <label>View</label>
             <select id="convView">
                 <option value="top">Highest Conviction</option>
@@ -803,7 +795,8 @@ async function loadAll() {
     const files = ['fo_latest','participant_divergence','chi_latest','macro_monthly',
                    'sector_momentum','insider_recent','upcoming_earnings','db_stats',
                    'master_score','sue_signal','momentum_signal','value_quality_signal',
-                   'smart_money_signal','smart_money_deals','conviction_score','company_sectors'];
+                   'smart_money_signal','smart_money_deals','conviction_score','company_sectors',
+                   'market_breadth','conviction_history'];
     await Promise.all(files.map(f =>
         fetch(BASE + f + '.json').then(r => r.json()).then(d => DATA[f] = d).catch(() => DATA[f] = [])
     ));
@@ -936,6 +929,8 @@ const TIPS = {
     conv_score: "Unified 0–100 conviction. 50 = median stock. Built from robust ranks, factor blocks, coverage shrinkage, sign-agreement, and interaction guards. Weights equal pending IC validation.",
     conv_nblocks: "How many of the 5 factor blocks (Earnings, Value, Quality, Momentum, Flow) have data for this stock. More = more reliable.",
     conv_agree: "Share of present blocks pointing the same direction as the overall score. High agreement = broad confirmation; low = the signals disagree.",
+    mkt_mood: "Market breadth over time — % of the liquid universe trading above its 200-DMA (green) and % with positive 12-1 momentum (amber). The risk-on/risk-off gauge: it collapsed to ~22% in the 2018 liquidity shock and ~10% in the 2020 COVID crash. Weekly, from price data.",
+    book_conv: "Your book's average Conviction vs the market baseline. Conviction is cross-sectionally normalized so the MARKET average is ~50 every day (the dashed reference) — what matters is whether YOUR book's line (blue) is rising or falling relative to it. Starts today and accrues forward.",
     conv_conc: "Your book's largest sector weight. Conviction is SECTOR-NEUTRAL by design (it ranks within sector), so it can't warn you about portfolio concentration — this does. ⚠ flags when ≥40% of holdings sit in one AMFI macro sector.",
     conv_driver: "The single factor block contributing most to this stock's score — the headline 'why'. E.g. Value = a valuation mismatch; Earn = an earnings-surprise beat.",
     conv_attrib: "Bidirectional factor attribution radiating from a zero-line: positive blocks push RIGHT (drivers), negative blocks pull LEFT (detractors, dimmed). Color-coded by block; |z|=3 fills a side. Instantly shows both what drives the score and what drags it (e.g. strong Momentum right, expensive Value pulling left).",
@@ -1006,6 +1001,8 @@ function makeTable(headers, rows) {
 // ─── Chart ───
 let macroChartInstance = null;
 let divChartInstance = null;
+let breadthChartInstance = null;
+let bookConvChartInstance = null;
 
 function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
 
@@ -1040,7 +1037,6 @@ function render() {
     renderHero();
     renderOverview();
     renderConviction();
-    renderMaster();
     renderMomentum();
     renderValueQuality();
     renderSmartMoney();
@@ -1328,6 +1324,30 @@ function renderConviction() {
             </div>`;
     })();
 
+    // ── Cockpit charts ──
+    const mb = (DATA.market_breadth || []).slice(-160);   // ~3yr of weekly breadth
+    if (mb.length) {
+        breadthChartInstance = makeLineChart('breadthChart', mb.map(r=>r.date.slice(0,7)), [
+            {data:mb.map(r=>r.pct_above_200dma), borderColor:'#34d399', backgroundColor:'#34d39918', fill:true, borderWidth:2},
+            {data:mb.map(r=>r.pct_pos_momentum), borderColor:'#f59e0b', borderWidth:1.5, fill:false},
+        ], breadthChartInstance);
+    }
+    const ch = DATA.conviction_history || [];
+    if (ch.length) {
+        bookConvChartInstance = makeLineChart('bookConvChart', ch.map(r=>r.date.slice(0,10)), [
+            {data:ch.map(r=>r.my_avg), borderColor:'#4f8ff7', backgroundColor:'#4f8ff718', fill:true, borderWidth:2},
+            {data:ch.map(r=>r.mkt_avg), borderColor:'#6b7280', borderWidth:1, borderDash:[4,3], fill:false},
+        ], bookConvChartInstance);
+    }
+
+    // populate sector filter once
+    const secSel = document.getElementById('convSector');
+    if (secSel && secSel.options.length <= 1) {
+        const secs = [...new Set((DATA.company_sectors||[]).map(s=>s.macro_sector))].filter(Boolean).sort();
+        secs.forEach(s=>{ const o=document.createElement('option'); o.value=s; o.textContent=s; secSel.appendChild(o); });
+    }
+    const SECMAP = {}; (DATA.company_sectors||[]).forEach(s=>SECMAP[s.symbol]=s.macro_sector);
+
     document.getElementById('convStats').innerHTML = `
         <div class="sstat">
             <div class="sstat-label">Stocks Scored${tip('conv_scored')}</div>
@@ -1386,14 +1406,22 @@ function renderConviction() {
             : '<span style="color:var(--fg3)">—</span>';
         return {pill, bar};
     }
+    function driverOf(c) {
+        const pos = CONV_BLOCKS.map(b => ({label:b.label, z:c[b.k]})).filter(x => x.z != null && !isNaN(x.z) && x.z > 0);
+        return pos.length ? pos.reduce((a,b) => b.z > a.z ? b : a).label : null;
+    }
 
     function renderTable() {
         const search = document.getElementById('convSearch').value.toUpperCase();
         const minB = parseInt(document.getElementById('convMinBlocks').value);
         const view = document.getElementById('convView').value;
         const mineOnly = document.getElementById('convMineOnly').checked;
+        const driver = document.getElementById('convDriver').value;
+        const sector = document.getElementById('convSector').value;
         let f = cs.filter(c => (!search || c.symbol.includes(search))
-            && (mineOnly ? MY_HOLDINGS[c.symbol] != null : c.n_blocks >= minB));
+            && (mineOnly ? MY_HOLDINGS[c.symbol] != null : c.n_blocks >= minB)
+            && (!driver || driverOf(c) === driver)
+            && (!sector || SECMAP[c.symbol] === sector));
         if (view === 'bottom') f = f.slice().reverse();
         document.getElementById('convCount').textContent = f.length + ' stocks' + (mineOnly ? ' (my book)' : '');
 
@@ -1426,6 +1454,8 @@ function renderConviction() {
     document.getElementById('convMinBlocks').addEventListener('change', renderTable);
     document.getElementById('convView').addEventListener('change', renderTable);
     document.getElementById('convMineOnly').addEventListener('change', renderTable);
+    document.getElementById('convDriver').addEventListener('change', renderTable);
+    document.getElementById('convSector').addEventListener('change', renderTable);
     renderTable();
 }
 
@@ -1849,6 +1879,7 @@ function toggleTheme() {
     if (macroChartInstance || divChartInstance) {
         renderOverview();
         renderFO();
+        renderConviction();
     }
 }
 
