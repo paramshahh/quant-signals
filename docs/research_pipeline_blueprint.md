@@ -44,8 +44,18 @@ Progress:
           retail crowding corrects PEAD faster than the US 50–60d. 15-day-old beat retains 71%.
         - Block weights EQUAL (horizon weighting deferred to #4 to avoid polluting the baseline).
         - Result: value-block top went from PSU-bank/oil concentrated to spread across 8 sectors.
-- [ ] #4 Validation engine (Fama-MacBeth + Newey-West t-stats + IC decay curves → fits H and weights)
-- [ ] #5 Execution friction (√-impact cost + circuit filter)
+- [x] **#4 Validation engine** — DONE 2026-05-27 (v1). `src/validation/factor_validation.py`
+      → data/validation/{ic_decay,fama_macbeth}.parquet. All 5 constraints implemented:
+      Newey-West (Bartlett, lag=tau-1) on Fama-MacBeth gamma_t; WLS by sqrt(ADTV_20); Spearman
+      rank IC; MARGINAL decay (single-day fwd at t+k) for half-life fitting; circuit (O=H=L=C)
+      + liquidity censoring at formation. Point-in-time: prices from TRI, SUE via PIT knowledge_date.
+      FIRST-PASS RESULTS (113 weekly formations, ~2.3 yrs — small sample):
+        - Newey-West works: momentum 21d t 2.73(iid)→1.38(NW); SUE 21d 4.04→2.44; SUE 5d 2.89→2.71.
+        - Momentum 12-1 NOT significant post-NW in-sample (t=1.38). SUE survives (t≈2.4–2.7).
+        - SUE marginal-IC decay does NOT fit a fast exponential → the H≈21 prior used in #3 is
+          UNVALIDATED by this data. Do not trust the SUE decay tuning yet; widen sample / revisit.
+        - Value/Quality validation deferred (needs point-in-time fundamentals; screener is a snapshot).
+- [ ] #5 Execution friction (√-impact cost + circuit filter in a mock portfolio layer)
 
 > Premise from the reviewer: we are well-positioned because we ingest **raw unadjusted
 > NSE bhavcopy** (not pre-adjusted Yahoo data) and have **board-meeting timestamps** — the
