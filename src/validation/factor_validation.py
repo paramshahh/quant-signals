@@ -36,7 +36,20 @@ OUT_DIR = Path(__file__).resolve().parents[2] / "data" / "validation"
 FORMATION_STEP = 5      # weekly formation dates (trading days) -> quasi-independent samples
 MAX_HORIZON = 60        # IC decay measured to t+60
 MIN_NAMES = 30          # min cross-section size to run a regression / IC on a date
-MIN_ADTV_LAKH = 100.0   # tradable universe: >= Rs 1cr/day avg turnover
+# Hard liquidity/survivorship censor: >= Rs 5cr/day ADTV. screener is a current-snapshot
+# (delisted blow-ups like DHFL/Jet/RCom are absent -> survivorship bias). Distressed names
+# collapse in liquidity long before delisting, so this gate proxies them out of the universe.
+MIN_ADTV_LAKH = 500.0   # Rs 5cr/day
+
+# Structural regimes for segmented validation (factors must be robust ACROSS regimes,
+# not just on the 2023+ bull). A single 8-yr average hides regime-specific behaviour.
+REGIMES = [
+    ("R1 Midcap Euphoria", "2015-01-01", "2018-01-31"),   # low-vol bull
+    ("R2 Liquidity Shock", "2018-02-01", "2019-12-31"),   # SEBI recat + IL&FS; midcap decimation
+    ("R3 V-Shape Retail",  "2020-01-01", "2021-12-31"),   # COVID crash + retail rally
+    ("R4 Rate-Hike Rotn",  "2022-01-01", "2022-12-31"),   # value rotation
+    ("R5 Live Bull",       "2023-01-01", "2030-12-31"),   # current pipeline window
+]
 
 
 # ───────────────────────── stats primitives ─────────────────────────
@@ -229,6 +242,45 @@ def fama_macbeth(signal: pd.DataFrame, close: pd.DataFrame, locked: pd.DataFrame
             "t_newey_west": t_nw, "t_iid_naive": t_iid, "n_periods": T}
 
 
+def regime_ic_ir(signal: pd.DataFrame, close: pd.DataFrame, locked: pd.DataFrame,
+                 adtv: pd.DataFrame, formation: list, horizon: int = 21):
+    """Cumulative-IC mean and IC-IR (mean/std) over a formation subset, at one horizon."""
+    idx = {d: i for i, d in enumerate(close.index)}
+    ics = []
+    for f in formation:
+        i = idx[f]
+        if i + horizon >= len(close.index):
+            continue
+        z = signal.iloc[i].to_numpy(dtype=float)
+        bad = locked.iloc[i].to_numpy(dtype=bool) | (adtv.iloc[i].to_numpy(dtype=float) < MIN_ADTV_LAKH)
+        z = np.where(bad, np.nan, z)
+        r = (close.iloc[i + horizon] / close.iloc[i] - 1.0).to_numpy(dtype=float)
+        ic = _spearman(z, r)
+        if not np.isnan(ic):
+            ics.append(ic)
+    ics = np.array(ics)
+    if len(ics) < 3:
+        return np.nan, np.nan, len(ics)
+    return float(ics.mean()), float(ics.mean() / ics.std()) if ics.std() > 0 else np.nan, len(ics)
+
+
+def run_regimes(signals: dict, close, locked, adtv, all_formation: list, tau: int = 21) -> pd.DataFrame:
+    """Segment Fama-MacBeth (NW t) + IC-IR across the structural regimes."""
+    rows = []
+    for rname, start, end in REGIMES:
+        s, e = pd.Timestamp(start), pd.Timestamp(end)
+        fdates = [d for d in all_formation if s <= d <= e]
+        if len(fdates) < 10:
+            continue
+        for sname, panel in signals.items():
+            fm = fama_macbeth(panel, close, locked, adtv, fdates, tau, sname)
+            mic, icir, n = regime_ic_ir(panel, close, locked, adtv, fdates, horizon=tau)
+            rows.append({"regime": rname, "signal": sname, "n_form": len(fdates),
+                         "mean_gamma": fm["mean_gamma"], "t_NW": fm["t_newey_west"],
+                         "mean_IC": mic, "IC_IR": icir})
+    return pd.DataFrame(rows)
+
+
 def fit_half_life(decay: pd.DataFrame) -> float:
     """Fit IC_marg(k) ~ IC0 * 0.5^(k/H) over the positive-IC region; return H (trading days)."""
     d = decay[(decay["ic_marginal"] > 0) & (decay["horizon"] <= 40)]
@@ -281,6 +333,10 @@ def run(con=None):
     ])
     fm.to_parquet(OUT_DIR / "fama_macbeth.parquet", index=False)
 
+    # ── Multi-regime segmentation (robustness across structural epochs) ──
+    regimes = run_regimes({"momentum_12_1": mom, "sue": sue}, close, locked, adtv, formation, tau=21)
+    regimes.to_parquet(OUT_DIR / "regime_validation.parquet", index=False)
+
     # ── report ──
     print("\n=== IC SUITE (Spearman, censored) ===")
     for nm in ["momentum_12_1", "sue"]:
@@ -301,8 +357,15 @@ def run(con=None):
     print("\n=== FAMA-MACBETH (WLS by sqrt(ADTV), Newey-West vs naive-iid t-stats) ===")
     print(fm.round(3).to_string(index=False))
     print(f"\n  (NW t-stat < iid t-stat = the overlap/serial-correlation inflation correctly removed)")
-    print(f"\nSaved: {OUT_DIR/'ic_decay.parquet'}, {OUT_DIR/'fama_macbeth.parquet'}")
-    return decay, fm
+
+    print("\n=== MULTI-REGIME VALIDATION (tau=21d; NW t & cumulative IC-IR per epoch) ===")
+    if not regimes.empty:
+        print(regimes.round(2).to_string(index=False))
+        print("  ^ a factor is robust only if its IC-IR / t_NW holds up THROUGH R2 (2018 crash) & R3 (COVID),")
+        print("    not just R5. Note: SUE pre-2023 carries the +45d SEBI execution-lag handicap (expect a")
+        print("    step-up into R5 as latency drops to T+1); survivorship-censored at ADTV >= Rs5cr.")
+    print(f"\nSaved: ic_decay / fama_macbeth / regime_validation .parquet in {OUT_DIR}")
+    return decay, fm, regimes
 
 
 if __name__ == "__main__":

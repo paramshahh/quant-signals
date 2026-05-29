@@ -55,7 +55,18 @@ Progress:
         - SUE marginal-IC decay does NOT fit a fast exponential → the H≈21 prior used in #3 is
           UNVALIDATED by this data. Do not trust the SUE decay tuning yet; widen sample / revisit.
         - Value/Quality validation deferred (needs point-in-time fundamentals; screener is a snapshot).
-- [~] #4b Deep multi-regime panel (the validation needs >2.3yr / 1 bull regime). Architecture =
+- [x] #4b Deep multi-regime panel — DONE 2026-05-27. Seeded equity 2015-2022 (legacy CM, 5.27M rows,
+      seam to live 2023+ verified gap-free) + yfinance pre-2023 CA (1,160 split/bonus total in TRI).
+      Validation segmented across R1-R5 (`data/validation/regime_validation.parquet`). KEY RESULTS:
+        - MOMENTUM rescued by the deeper sample: full-sample Newey-West t 1.38 (bull-only) -> 2.41
+          (2015-2026, 509 periods). The bull window UNDERstated it (cross-sectional dispersion shrinks
+          in a beta rally) — reviewer's prediction confirmed. Regime-dependent: works R2 2018 crash
+          (t 1.94, IC-IR 0.38) & R5 (t 1.96, 0.44); FAILS R4 2022 value-rotation (t -0.37). Honest profile.
+        - SUE only validatable 2023+ (R5: t 1.97, IC-IR 0.56) — NOT a look-ahead issue: only 23 symbols
+          have 8+ quarters of fundamentals before 2023 (screener depth is thin for most names), below the
+          30-name cross-section floor. Cross-regime SUE needs deep quarterly EPS (Compustat RDQ / deeper scrape).
+      Verdict: pipeline mechanically correct; momentum moderately robust & regime-aware; weights stay EQUAL.
+- [~] #4b-superseded Deep multi-regime panel. Architecture =
       one-time STATIC seed of history, daily cron left untouched. `src/ingestion/legacy_bhavcopy_backfill.py`
       built + proven: legacy CM bhavcopy gives OHLCV + turnover + ISIN back to ~2008 (no delivery,
       not needed for momentum/SUE). Plan: seed equity ~2015–2022 (covers 2018 midcap crash + 2020
