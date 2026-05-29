@@ -46,7 +46,9 @@ BLOCK_WEIGHTS = {
 MACRO_TILT = 0.05      # uniform regime nudge (does not change cross-sectional rank)
 SHRINK_K = 2.5         # coverage shrinkage: factor = n/(n+K). Higher = thin-coverage names
                        # damped harder so a 2-block stock can't top a 5-block one on extremes.
-INTERACTION_LAMBDA = 0.06
+QUALITY_GATE_K = 0.5          # soft gate steepness — gentle decay, not a turnover-inducing cliff
+QUALITY_GATE_CENTER = -1.0    # inflection shifted to Q=-1σ: average/high quality keep ~80-100% of
+                              # their value credit; only genuine junk (Q < -2) is crushed to ~0
 MIN_BLOCKS = 2
 
 
@@ -232,6 +234,16 @@ def compute_conviction(con: Optional[duckdb.DuckDBPyConnection] = None) -> pd.Da
     flow_cols = [c for c in ["fo", "cadp", "chi", "smart"] if c in R]
     blocks["flow"] = R[flow_cols].mean(axis=1) if flow_cols else np.nan
 
+    # QUALITY GATE on VALUE (final composite layer): a linear Value+Quality average lets a PSU
+    # "value trap" (cheap P/E but bleeding cash, Q<<0) average out to a false positive. Instead we
+    # GATE the value block multiplicatively by quality — Effective Value = Value · σ(k·(Q − center)).
+    # Soft (k=0.5) + inflection at Q=-1σ: average/high quality keep their value credit; genuine junk
+    # is crushed toward zero. Momentum is left PURE & un-gated (junk/liquidity rallies are real alpha).
+    q = blocks["quality"].to_numpy(dtype=float)
+    gate = np.where(np.isnan(q), 1.0,
+                    1.0 / (1.0 + np.exp(-QUALITY_GATE_K * (q - QUALITY_GATE_CENTER))))
+    blocks["value"] = blocks["value"].to_numpy(dtype=float) * gate
+
     bnames = list(BLOCK_WEIGHTS.keys())
     W = np.array([BLOCK_WEIGHTS[b] for b in bnames])
     B = blocks[bnames].to_numpy()                       # (n_stocks, n_blocks)
@@ -253,13 +265,10 @@ def compute_conviction(con: Optional[duckdb.DuckDBPyConnection] = None) -> pd.Da
     agreement = np.where(n_blocks > 0, same.sum(axis=1) / np.maximum(n_blocks, 1), 0.5)
     agree_mult = 0.5 + 0.5 * agreement
 
-    # interaction guards (confirmed cheap+good / trend+good). Folded into the composite
-    # BEFORE shrinkage so a thin-coverage name can't earn an undamped interaction bonus.
-    relu = lambda x: np.where(np.isnan(x), 0.0, np.maximum(x, 0.0))
-    vq_syn = INTERACTION_LAMBDA * relu(blocks["value"].to_numpy()) * relu(blocks["quality"].to_numpy())
-    mq_syn = INTERACTION_LAMBDA * relu(blocks["momentum"].to_numpy()) * relu(blocks["quality"].to_numpy())
-
-    final = (composite_raw + vq_syn + mq_syn) * shrink * agree_mult + MACRO_TILT * macro_z
+    # Value-trap suppression now lives in the multiplicative quality GATE on the value block above
+    # (replaces the old additive ReLU·ReLU bonus, which only rewarded confirmation and let cheap-junk
+    # leak through at a haircut). composite_raw already reflects the gated value.
+    final = composite_raw * shrink * agree_mult + MACRO_TILT * macro_z
 
     out = blocks.copy()
     out.columns = [f"b_{c}" for c in out.columns]
