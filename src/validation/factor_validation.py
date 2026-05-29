@@ -157,29 +157,45 @@ def _sue_panel(con, dates: pd.DatetimeIndex, symbols) -> pd.DataFrame:
 
 
 # ───────────────────────── engines ─────────────────────────
-def marginal_ic_decay(signal: pd.DataFrame, close: pd.DataFrame, locked: pd.DataFrame,
-                      adtv: pd.DataFrame, formation: list, name: str) -> pd.DataFrame:
-    """Marginal Spearman IC at horizons 1..MAX_HORIZON (single-day return on day t+k)."""
+def ic_decay(signal: pd.DataFrame, close: pd.DataFrame, locked: pd.DataFrame,
+             adtv: pd.DataFrame, formation: list, name: str) -> pd.DataFrame:
+    """Per-horizon Spearman IC suite:
+      - MARGINAL  IC: corr(Z_t, single-day return on day t+k)   -> fit the decay SHAPE / half-life
+      - CUMULATIVE IC: corr(Z_t, R_{t->t+k})                     -> total directional accuracy
+      - IC-IR     : mean(IC_t) / std(IC_t) across formation dates -> CONSISTENCY (Grinold)
+    Marginal single-day IC is microstructure-noisy and used only for the curve shape; capital
+    decisions should look at cumulative IC and especially IC-IR."""
     single_fwd = close.shift(-1) / close - 1.0          # return realised over (t, t+1]
     idx = {d: i for i, d in enumerate(close.index)}
+
+    def _stats(a):
+        a = np.asarray(a, dtype=float)
+        if len(a) < 2:
+            return (np.nan, np.nan, np.nan)
+        m, s = a.mean(), a.std()
+        return (m, s, m / s if s > 0 else np.nan)   # mean, std, IC-IR
+
     rows = []
     for k in range(1, MAX_HORIZON + 1):
-        ics = []
+        marg, cum = [], []
         for f in formation:
             i = idx[f]
             if i + k >= len(close.index):
                 continue
             z = signal.iloc[i].to_numpy(dtype=float)
-            # circuit + liquidity censor at formation
             bad = locked.iloc[i].to_numpy(dtype=bool) | (adtv.iloc[i].to_numpy(dtype=float) < MIN_ADTV_LAKH)
-            z = np.where(bad, np.nan, z)
-            r = single_fwd.iloc[i + k].to_numpy(dtype=float)
-            ic = _spearman(z, r)
+            z = np.where(bad, np.nan, z)                       # circuit + liquidity censor
+            im = _spearman(z, single_fwd.iloc[i + k].to_numpy(dtype=float))
+            ic = _spearman(z, (close.iloc[i + k] / close.iloc[i] - 1.0).to_numpy(dtype=float))
+            if not np.isnan(im):
+                marg.append(im)
             if not np.isnan(ic):
-                ics.append(ic)
-        if ics:
-            rows.append({"signal": name, "horizon": k, "ic_marginal": np.mean(ics),
-                         "ic_std": np.std(ics), "n_dates": len(ics)})
+                cum.append(ic)
+        mm, cc = _stats(marg), _stats(cum)
+        rows.append({"signal": name, "horizon": k,
+                     "ic_marginal": mm[0], "ir_marginal": mm[2],
+                     "ic_cumulative": cc[0], "ir_cumulative": cc[2],
+                     "ic_std": mm[1], "n_dates": len(marg)})
     return pd.DataFrame(rows)
 
 
@@ -252,8 +268,8 @@ def run(con=None):
 
     # ── IC decay curves (marginal, Spearman, censored) ──
     decay = pd.concat([
-        marginal_ic_decay(mom, close, locked, adtv, formation, "momentum_12_1"),
-        marginal_ic_decay(sue, close, locked, adtv, formation, "sue"),
+        ic_decay(mom, close, locked, adtv, formation, "momentum_12_1"),
+        ic_decay(sue, close, locked, adtv, formation, "sue"),
     ], ignore_index=True)
     decay.to_parquet(OUT_DIR / "ic_decay.parquet", index=False)
 
@@ -266,14 +282,21 @@ def run(con=None):
     fm.to_parquet(OUT_DIR / "fama_macbeth.parquet", index=False)
 
     # ── report ──
-    print("\n=== MARGINAL IC DECAY (Spearman, censored) — avg IC by horizon ===")
+    print("\n=== IC SUITE (Spearman, censored) ===")
     for nm in ["momentum_12_1", "sue"]:
         d = decay[decay.signal == nm]
-        pts = {k: d[d.horizon == k]["ic_marginal"].values[0] for k in (1, 5, 10, 21, 42, 60) if (d.horizon == k).any()}
         H = fit_half_life(d)
-        line = "  ".join(f"k={k}:{v:+.3f}" for k, v in pts.items())
-        print(f"  {nm:14s} {line}   |  fitted half-life H = {H:.0f} td" if not np.isnan(H)
-              else f"  {nm:14s} {line}   |  H n/a")
+        def at(k, col):
+            v = d[d.horizon == k][col]
+            return v.values[0] if len(v) else np.nan
+        print(f"  {nm}:")
+        print(f"     marginal IC   k=1:{at(1,'ic_marginal'):+.3f}  k=5:{at(5,'ic_marginal'):+.3f}  "
+              f"k=21:{at(21,'ic_marginal'):+.3f}  k=60:{at(60,'ic_marginal'):+.3f}   half-life H="
+              + (f"{H:.0f} td" if not np.isnan(H) else "n/a"))
+        print(f"     cumulative IC k=5:{at(5,'ic_cumulative'):+.3f}  k=21:{at(21,'ic_cumulative'):+.3f}  "
+              f"k=60:{at(60,'ic_cumulative'):+.3f}")
+        print(f"     IC-IR (cumul) k=5:{at(5,'ir_cumulative'):+.2f}  k=21:{at(21,'ir_cumulative'):+.2f}  "
+              f"k=60:{at(60,'ir_cumulative'):+.2f}   (mean IC / std IC — consistency)")
 
     print("\n=== FAMA-MACBETH (WLS by sqrt(ADTV), Newey-West vs naive-iid t-stats) ===")
     print(fm.round(3).to_string(index=False))
