@@ -55,6 +55,13 @@ Progress:
         - SUE marginal-IC decay does NOT fit a fast exponential → the H≈21 prior used in #3 is
           UNVALIDATED by this data. Do not trust the SUE decay tuning yet; widen sample / revisit.
         - Value/Quality validation deferred (needs point-in-time fundamentals; screener is a snapshot).
+- [~] #4b Deep multi-regime panel (the validation needs >2.3yr / 1 bull regime). Architecture =
+      one-time STATIC seed of history, daily cron left untouched. `src/ingestion/legacy_bhavcopy_backfill.py`
+      built + proven: legacy CM bhavcopy gives OHLCV + turnover + ISIN back to ~2008 (no delivery,
+      not needed for momentum/SUE). Plan: seed equity ~2015–2022 (covers 2018 midcap crash + 2020
+      COVID) → bridges to live 2023+. Corporate actions pre-2023 via yfinance splits/dividends (TRI)
+      + SEBI 45/60-day fallback for SUE knowledge_date (reviewer-blessed). MUST seed CA with prices,
+      else deep history re-introduces phantom split crashes. WRDS=paid (skip), BSE scrape=ethos upgrade.
 - [ ] #5 Execution friction (√-impact cost + circuit filter in a mock portfolio layer)
 
 > Premise from the reviewer: we are well-positioned because we ingest **raw unadjusted
