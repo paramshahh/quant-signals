@@ -1,0 +1,402 @@
+QUANT SIGNALS — PROJECT STATUS
+Last updated: 2026-05-27 (FULL BACKFILL — all 19 tables current to 2026-05-27; Conviction Score added;
+                          10 signals; dashboard 12 tabs; corporate-loader + IIP-parser bugs fixed)
+
+>>> MILESTONE 2026-05-27: closed a 367-day data gap. equity/F&O/FII/corporate were stale at 2025-05-16;
+    backfilled the full year + re-scraped all screener fundamentals. For the FIRST time every table and
+    every signal is computed on current data simultaneously. Added the unified Conviction Score (0-100)
+    that supersedes the naive MasterScore. Weights remain EQUAL/unfitted by design (IC validation pending).
+
+=====================================
+WHAT THIS IS
+=====================================
+A quantitative signal intelligence platform for Indian retail investors and small family offices.
+Built entirely on free public NSE/BSE data. Differentiated by transparent methodology.
+Param is solo — Claude is the engineering team.
+
+Reference docs saved at:
+  /Users/paramshah/Desktop/playground/quant_intelligence_report.txt  (market opportunity thesis)
+  /Users/paramshah/Desktop/playground/quant_technical_brief.txt      (full technical brief for engineers/DS)
+
+=====================================
+CODEBASE LAYOUT
+=====================================
+/Users/paramshah/Desktop/playground/quant-signals/
+├── src/ingestion/
+│   ├── nse_equity_bhavcopy.py    — Equity OHLCV + delivery % downloader/parser
+│   ├── nse_fo_bhavcopy.py        — F&O bhavcopy + participant OI/vol downloader/parser
+│   ├── nse_bulk_block.py         — Bulk & block deals downloader/parser (current-day only)
+│   ├── nse_fii_stats.py          — FII derivatives statistics XLS downloader/parser
+│   ├── nse_corporate.py          — Corporate announcements, board meetings, actions, shareholding, insider trading
+│   ├── macro_gst.py              — GST state-wise collections (automated, requests + openpyxl)
+│   ├── macro_rbi_credit.py       — RBI sectoral bank credit (Selenium index scrape + requests download)
+│   ├── macro_iip.py              — IIP parser (manual download from esankhyiki.mospi.gov.in)
+│   ├── bse_insider_trading.py    — BSE insider trading Selenium scraper (needs visible Chrome window)
+│   ├── screener_financials.py    — screener.in quarterly EPS, balance sheet, ratios scraper (1512 symbols scraped)
+│   └── load_to_duckdb.py         — Master loader: all raw data → DuckDB tables (14 tables)
+├── data/
+│   ├── quant_signals.duckdb      — Analytical database (~28M rows, 11 tables)
+│   ├── raw/equity_bhavcopy/      — 613 daily CSV files (2023-01-02 → 2025-05-16)
+│   ├── raw/fo_bhavcopy/          — 582 F&O CSVs + 580 participant_oi + 580 participant_vol
+│   ├── raw/fii_stats/            — 582 XLS files (2023-01-02 → 2025-05-16)
+│   ├── raw/bulk_block/           — Current-day bulk/block CSVs (accumulates over time)
+│   ├── raw/corporate/            — JSON files for announcements, board meetings, actions, shareholding
+│   ├── raw/macro/gst/            — GST state-wise collection Excel files (FY 2017-18 → 2025-26)
+│   ├── raw/macro/rbi_credit/     — RBI sectoral credit Excel files (82 monthly files)
+│   ├── raw/macro/iip/            — IIP data files (manual download, empty until populated)
+│   ├── raw/screener/             — 1,512 per-symbol JSON files from screener.in
+│   └── export/                   — JSON exports for the HTML dashboard
+├── src/signals/
+│   ├── cadp.py                   — Signal 1: Pre-Earnings Delivery Conviction (CADP)
+│   ├── fo_positioning.py         — Signal 2: F&O Informed Positioning (OI regime + PCR + divergence)
+│   ├── chi.py                    — Signal 3: Corporate Health Index (CHI)
+│   ├── macro_nowcast.py          — Signal 4: Macro Sector Revenue Nowcaster (GST+IIP+Credit)
+│   ├── sue.py                    — Signal 5: Standardized Unexpected Earnings (SUE)
+│   ├── momentum.py               — Signal 7: Price Momentum (12-1 return + 52w-high + 200DMA; gap-robust anchor)
+│   ├── value_quality.py          — Signal 8: Value + Quality (earnings yield/B-P/div + ROE/ROCE/leverage/margin)
+│   ├── smart_money.py            — Signal 9: Smart-Money Flow (bulk/block net buying, standalone — not in MasterScore yet)
+│   ├── master_score.py           — Signal 6: MasterScore (composite of signals 1,2,3,5,7,8 + macro tilt)
+│   └── conviction_score.py       — UNIFIED Conviction Score (0-100): robust rank-normal → 6 factor blocks →
+│                                    coverage shrinkage (James-Stein) → agreement multiplier → value×quality /
+│                                    momentum×quality interaction guards. Supersedes MasterScore. Weights EQUAL (pending IC).
+├── signals_dashboard.html        — Full signals dashboard (12 tabs, light/dark, Chart.js, ~130 help tooltips)
+├── serve.py                      — Simple HTTP server for dashboard
+├── export_for_dashboard.py       — DuckDB → JSON exporter for dashboard (NaN-safe, all 6 signals)
+├── daily_refresh.py              — Daily automation: fetch → load → signals → export
+├── run_backfill.py               — Master backfill script (equity + F&O)
+└── explore.ipynb                 — Jupyter notebook with query cells
+
+=====================================
+DATABASE: DuckDB (data/quant_signals.duckdb)
+=====================================
+
+--- TIER 1: Daily Exchange Data ---  (ALL current to 2026-05-27 as of the 2026-05-27 backfill)
+equity_daily            ~1.5M rows       877 days  2023-01-02 → 2026-05-27
+  Columns: trade_date, symbol, series, open, high, low, close, volume, turnover, delivery_qty, delivery_pct
+
+fo_daily               25,987,537 rows   582 days  2023-01-02 → 2025-05-16
+  Columns: trade_date, symbol, instrument, expiry, strike, option_type, open, high, low, close, settle_pr, contracts, value_lakhs, oi, oi_change
+
+participant_oi              2,320 rows   580 days  2023-01-02 → 2025-05-16
+  Columns: trade_date, client_type (Client/DII/FII/Pro), future_index_long/short, future_stock_long/short, option_index_call/put_long/short, option_stock_call/put_long/short, total_long, total_short
+
+participant_vol             2,320 rows   580 days  2023-01-02 → 2025-05-16
+  Same schema as participant_oi but trading volumes instead of open interest
+
+fii_stats                   7,348 rows   582 days  2023-01-02 → 2025-05-16
+  Columns: trade_date, category (INDEX FUTURES/OPTIONS, STOCK FUTURES/OPTIONS, NIFTY/BANKNIFTY breakdowns), buy_contracts, buy_value_cr, sell_contracts, sell_value_cr, oi_contracts, oi_value_cr
+
+bulk_deals                     73 rows   1 day     2026-05-15 (current-day only, accumulates)
+  Columns: trade_date, symbol, security_name, client_name, buy_sell, quantity, price
+
+block_deals                     0 rows   (none captured yet)
+  Same schema as bulk_deals
+
+--- TIER 2: Corporate / Regulatory Data ---
+corporate_announcements   405,130 rows   2023-01-01 → 2025-05-17
+  Columns: announcement_date, symbol, company_name, industry, category, subject, attachment_url, isin, seq_id
+
+board_meetings             42,371 rows   2023-01-02 → 2025-05-17
+  Columns: meeting_date, symbol, company_name, industry, purpose, description, meeting_type, intimation_type
+
+corporate_actions           5,666 rows   2023-01-02 → 2025-05-16
+  Columns: symbol, company_name, series, face_value, subject, ex_date, record_date, isin
+
+promoter_shareholding      22,919 rows   339 symbols, 2004-03-31 → 2026-04-30
+  Columns: symbol, company_name, quarter_end, promoter_pct, public_pct, employee_trusts_pct, submission_date
+
+insider_trading            68,403 rows   2,674 securities, 2014-03-24 → 2026-05-15
+  Columns: security_code, security_name, person_name, category, acquired_qty, acquired_value, transaction_type, date_from/to, mode_of_acquisition
+
+--- TIER 2b: Screener.in Financial Data ---
+quarterly_results          13,900 rows   1,142 symbols
+  Columns: symbol, quarter, sales, operating_profit, opm_pct, net_profit, eps
+  Source: screener.in/company/{SYMBOL}/consolidated/
+
+balance_sheet              11,529 rows
+  Columns: symbol, year, equity_capital, reserves, borrowings, total_liabilities, fixed_assets, total_assets
+
+company_ratios              1,512 rows
+  Columns: symbol, market_cap_cr, current_price, pe_ratio, book_value, dividend_yield, roce, roe, face_value
+
+--- TIER 3: Macro-Administrative Data ---
+gst_collections              3,546 rows   103 months  2017-07-01 → 2026-02-01
+  Columns: month, state_code, state, cgst_cr, sgst_cr, igst_cr, total_cr
+
+rbi_sectoral_credit          6,247 rows   79 months   2019-06-01 → 2026-03-01
+  Columns: report_date, statement, sector, depth, outstanding_cr, yoy_pct
+
+iip_index                    5,544 rows   168 months, 33 sectors, 2012-04-01 → 2026-03-01
+  Columns: period, sector, index_value
+
+TOTAL: ~28,028,731 rows across 18 tables
+
+=====================================
+DATA SOURCES & URLs
+=====================================
+Equity:     archives.nseindia.com/products/content/sec_bhavdata_full_{DDMMYYYY}.csv
+F&O legacy: archives.nseindia.com/content/historical/DERIVATIVES/{YYYY}/{MON}/fo{DDMONYYYY}bhav.csv.zip
+F&O UDiFF:  archives.nseindia.com/content/fo/BhavCopy_NSE_FO_0_0_0_{YYYYMMDD}_F_0000.csv.zip
+Participant: archives.nseindia.com/content/nsccl/fao_participant_oi_{DDMMYYYY}.csv
+             archives.nseindia.com/content/nsccl/fao_participant_vol_{DDMMYYYY}.csv
+FII stats:  archives.nseindia.com/content/fo/fii_stats_{DD}-{Mmm}-{YYYY}.xls
+Bulk deals: archives.nseindia.com/content/equities/bulk.csv (current day only)
+Block deals: archives.nseindia.com/content/equities/block.csv (current day only)
+Announcements: nseindia.com/api/corporate-announcements (JSON, needs session cookie)
+Board meetings: nseindia.com/api/corporate-board-meetings (JSON, needs session cookie)
+Corp actions: nseindia.com/api/corporates-corporateActions (JSON, needs session cookie)
+Shareholding: nseindia.com/api/corporate-share-holdings-master?index=equities&symbol=X (JSON)
+GST:          tutorial.gst.gov.in/offlineutilities/gst_statistics/statewise_GST_collection_{FY}.xlsx
+RBI Credit:   rbi.org.in/Scripts/Data_Sectoral_Deployment.aspx → press release → rbidocs.rbi.org.in
+IIP:          esankhyiki.mospi.gov.in/macroindicators?product=iip (manual download, JS SPA)
+BSE Insider:  bseindia.com/corporates/Insider_Trading_new.aspx (needs visible Chrome, Akamai WAF)
+Screener:     screener.in/company/{SYMBOL}/consolidated/ (rate-limit ~0.5s, JSON caching per symbol)
+
+=====================================
+KNOWN ISSUES / GOTCHAS
+=====================================
+- NSE homepage (nseindia.com) returns 403 for bots. archives.nseindia.com works without cookies.
+- NSE API endpoints (/api/*) need session cookies: GET nseindia.com first, reuse session.
+- F&O format changed July 8, 2024: legacy CSV → UDiFF zip. Parser auto-detects via TCKRSYMB column.
+- Bulk/block deals: no historical archive URL — only current day. Must run daily to accumulate.
+- BSE insider trading API needs authenticated Listing Centre session — NOT accessible with simple HTTP.
+- DuckDB write lock: only one process can write at a time. Close Jupyter kernel before running load_to_duckdb.
+- System python3 (3.9) has permission issues with http.server. Use `npx serve` for dashboard.
+- eSankhyiki (IIP) is a broken JS SPA that sometimes doesn't render. Manual download only.
+- BSE Akamai WAF blocks ALL headless browsers. Insider trading scraper must run with visible Chrome window.
+- screener.in: no WAF, rate limit ~0.5s is safe. Falls back to standalone URL if consolidated 404s. Some symbols don't exist (ETFs, indices). Caches per-symbol JSON. Special chars in symbols need URL encoding (L&TFH → L%26TFH).
+- load_to_duckdb fails on IIP data with "invalid date field format: March" — pre-existing, non-blocking.
+- [RESOLVED 2026-05-27] equity_daily had a 367-day gap (ended 2025-05-16). Backfilled 2025-05-17 → 2026-05-27
+  (equity, F&O, participants, FII, corporate) + full screener re-scrape. Momentum anchor is now 2026-05-27.
+  Momentum stays gap-robust (auto-anchors to last continuous block) so a future gap degrades gracefully.
+- [FIXED 2026-05-27] corporate loaders (announcements/board/actions) were DEFINED but never called in
+  load_all_available, AND used DELETE-all+INSERT-one-file (assumed a single full-history file). Now wired in
+  and merge-and-dedup across all date-range files (dedup keys: seq_id / symbol+date+purpose / symbol+exdate+subject).
+- [FIXED 2026-05-27] IIP parser assumed wide month-columns; the MoSPI file is LONG (year,month,category,index).
+  Rewrote parse_iip_file to detect the long format (period=year+month, sector=sub_category|category). The old
+  failed INSERT had also wiped iip_index to 0 rows — restored to 5,544 (33 sectors, 2012-04 → 2026-03).
+  load_iip_index is now wrapped non-fatal so a parse error can't abort the whole load.
+- screener company_ratios is a point-in-time SNAPSHOT (no date column) — Value/Quality is cross-sectional
+  only, refreshed whenever the screener scraper re-runs.
+
+=====================================
+DASHBOARD
+=====================================
+- URL: http://localhost:8420/signals_dashboard.html
+- Server: python3 -m http.server 8420 (configured in .claude/launch.json)
+- Design: portfolio tracker design system (Inter + JetBrains Mono, light/dark toggle, #2563eb accent)
+- 12 tabs: Overview, Conviction, MasterScore, Momentum, Value & Quality, Earnings Surprise, Smart Money,
+           F&O Positioning, Corporate Health, Macro Pulse, Insider Activity, Earnings Calendar
+- Hero headline stat = Top Conviction (from 4+ block coverage); Conviction tab shows 0-100 + per-block breakdown
+- Charts: Chart.js (macro z-score time series, FII/client divergence)
+- Data: reads from data/export/*.json (generated by export_for_dashboard.py)
+- Light/dark theme with localStorage persistence + system preference detection
+- ~115 contextual help tooltips (? icons) across all tabs explaining every metric, signal, and column
+- Momentum tab carries an amber "as-of" staleness banner driven by the equity_daily anchor date
+- Global tooltip system: single fixed-position tooltip div, JS event delegation, dynamic arrow positioning
+
+=====================================
+WHAT'S BEEN BUILT
+=====================================
+Phase 1: Data Pipelines (COMPLETE)
+  [x] Equity bhavcopy ingestion (2023-01-01 → 2025-05-16)
+  [x] F&O bhavcopy ingestion (2023-01-01 → 2025-05-16, both legacy + UDiFF formats)
+  [x] Participant-wise OI + Volume ingestion
+  [x] FII derivatives statistics ingestion
+  [x] Bulk/block deals pipeline (current-day capture)
+  [x] DuckDB analytical layer with all Tier 1 data
+  [x] Corporate announcements ingestion (405K records)
+  [x] Board meetings ingestion (42K records)
+  [x] Corporate actions ingestion (5.7K records)
+  [x] Promoter shareholding ingestion (23K records, 339 symbols)
+  [x] GST collections pipeline (automated, 2017-18 → 2025-26, 3,546 records)
+  [x] RBI sectoral bank credit pipeline (semi-automated, Jun 2019 → Mar 2026, 6,247 records)
+  [x] IIP parser (ready, needs manual file download from esankhyiki)
+  [x] BSE insider trading Selenium scraper (needs visible Chrome window to bypass Akamai)
+  [x] screener.in financials scraper (1,512 symbols scraped, 1,142 with quarterly EPS)
+
+Phase 2: Signals Layer (ALL 6 SIGNALS COMPLETE)
+  [x] Signal 1 (CADP) — pre-earnings delivery conviction, 1,967 symbols
+  [x] Signal 2 (F&O) — OI regime + PCR + participant divergence, 282 F&O symbols
+  [x] Signal 3 (CHI) — corporate health index, 339 symbols
+  [x] Signal 4 (Macro) — GST+IIP+credit composite, z-score, sector momentum
+  [x] Signal 5 (SUE) — standardized unexpected earnings, 1,048 symbols (up from 471)
+      Based on Param's Momentum-Research/Rank_SUE.ipynb implementation
+      SUE = (EPS_q - EPS_{q-4}) / std(sequential EPS changes, 8 quarters)
+      Also computes Novy-Marx fundamental momentum proxy (FM = recent4_avg - prior4_avg)
+  [x] Signal 6 (MasterScore) — cross-sectional z-score composite of all 5 signals
+      Equal-weight z-scores + macro regime tilt. 996 stocks with 2+ signals ranked.
+  [x] Dashboard with all signals visualized (8 tabs, light/dark, Chart.js, 70 tooltips)
+  [x] JSON export pipeline (NaN-safe, all signals + market data)
+
+Phase 2b: Screener.in Scraper (COMPLETE)
+  [x] src/ingestion/screener_financials.py — scrapes:
+      • Quarterly results: Sales, Operating Profit, OPM%, Net Profit, EPS
+      • Annual P&L
+      • Balance sheet: Equity Capital, Reserves, Borrowings, Total Assets
+      • Key ratios: Market Cap, P/E, Book Value, ROCE, ROE, Dividend Yield
+      • Shareholding (FII/DII breakdown by quarter)
+  [x] Targets: F&O symbols + top 1500 equity by volume (~1,520 stocks)
+  [x] Rate limiting: 0.4-0.8s random delay, individual JSON caching per symbol
+  [x] DuckDB loader: creates quarterly_results (13,900 rows), balance_sheet (11,529), company_ratios (1,512)
+  [x] CLI: --test N, --load, --force (re-scrape cached), --top-n N
+  [x] Special char handling: L&TFH, M&M, M&MFIN, J&KBANK, L&T → URL-encoded
+
+Phase 2c: Price + Fundamental Factor Signals (COMPLETE — 2026-05-27)
+  [x] Signal 7 (Momentum) — 12-1 return + 6-1 + 52w-high proximity + 200DMA, liquidity-gated (₹1cr+/day)
+      Composite = 0.6·z(12-1) + 0.4·z(52w-high), winsorized ±3σ. 1,244 ranked stocks.
+      Gap-robust: auto-anchors to the last continuous block of daily data (currently 2025-05-16)
+      because equity_daily has a 367-day ingestion hole. Folded into MasterScore as raw_mom.
+  [x] Signal 8 (Value + Quality) — Value: 1/PE, book/price, div yield. Quality: ROE, ROCE,
+      debt/equity, OPM trend, profit consistency. 50/50 combined. 1,170 stocks. Folded in as raw_vq.
+  [x] Signal 9 (Smart-Money) — net bulk/block buying per symbol + repeat-accumulation flag + deal tape.
+      66 symbols. Deliberately STANDALONE (not in MasterScore) until bulk/block history deepens.
+  [x] MasterScore upgraded to 7-signal composite (was all fundamentals/flows; now has a price factor)
+  [x] Dashboard: 3 new tabs (Momentum, Value & Quality, Smart Money) + Mom/V+Q columns in MasterScore table
+
+Phase 2d: Unified Conviction Score + Full Backfill (COMPLETE — 2026-05-27)
+  [x] conviction_score.py — engineered composite that supersedes MasterScore. Pipeline:
+      robust rank→normal (Acklam ppf, no scipy) → 6 factor blocks (Earnings, Value, Quality, Momentum, Flow,
+      + macro tilt) → coverage shrinkage n/(n+2.5) → agreement multiplier (0.5+0.5·agree) →
+      value×quality & momentum×quality interaction guards (λ=0.06) → logistic map to 0-100.
+      Min 2 blocks. Literature-backed construction; cross-block weights EQUAL pending IC validation.
+  [x] Full data backfill 2025-05-17 → 2026-05-27 (closed the 367-day gap on equity/F&O/FII/corporate)
+  [x] Full screener re-scrape (1,512 symbols) → fresh quarterly_results/balance_sheet/company_ratios
+  [x] Fixed corporate-loader wiring + idempotent merge; fixed + restored IIP (long-format parser)
+  [x] Dashboard: Conviction tab (0-100 + per-block breakdown) + Top Conviction hero stat
+
+Phase 3: Daily Automation (COMPLETE)
+  [x] daily_refresh.py — full pipeline: fetch → load → signals 1-9 → MasterScore → export
+  [x] Cron: Mon-Fri 9:00am EDT (6:30pm IST, after NSE market close)
+  [x] Logs: data/logs/daily_refresh.log
+  [x] CLI: --fetch-only, --signals-only for partial runs
+
+=====================================
+WHAT'S NEXT
+=====================================
+  [!] IC VALIDATION LAYER — the big one. Measure each signal's forward-return information coefficient
+      (reconstruct signal values at past month-ends, correlate with subsequent 1/3/6-mo returns).
+      ONLY this turns the EQUAL Conviction/MasterScore weights into evidence-based ones. Now UNBLOCKED:
+      the freshly-backfilled price history makes forward returns computable. (Deferred by Param to option 3.)
+  [ ] Event-driven signal (pre-earnings board-meeting drift) — NOW UNBLOCKED: corporate data current to 2026-05-27
+  [ ] Dead-man's-switch: red dashboard banner if any table's latest date is > N days stale (prevent silent 1yr rot)
+  [ ] Options IV / put-call skew from fo_daily OPTSTK rows (heavy: Black-Scholes inversion)
+  [ ] Daily signal digest + alerts (regime changes, MasterScore movers, upcoming catalysts)
+  [ ] Paper portfolio tracker (mechanical top-20 MasterScore, track forward PnL)
+  [ ] Weekly screener refresh cron (re-scrape quarterly after results season ~Feb/May/Aug/Nov)
+  [ ] Ledoit-Wolf shrinkage weighting for MasterScore (currently equal-weight)
+
+=====================================
+SIGNAL SPECIFICATIONS
+=====================================
+Framework: 5 signals + composite MasterScore + multiple testing discipline
+References: Kyle (1985), Pan & Poteshman (2006), Jeng/Metrick/Zeckhauser (2003),
+            Giannone/Reichlin/Small (2008), Agarwalla/Jacob/Varma (2014), Harvey/Liu/Zhu (2016),
+            Ball & Brown (1968), Bernard & Thomas (1989), Novy-Marx (2015)
+
+--- Signal 1: Pre-Earnings Delivery Conviction (CADP) ---
+Theory: Kyle (1985) informed trading model. Informed traders must take delivery (can't
+        square off intraday), so delivery % is a noisy proxy for informed order flow.
+Construction:
+  ADP_{i,t} = DP_{i,t} - mean(DP_{i, [-60,-11]})     # abnormal delivery %
+  CADP_i = sum(ADP_{i,t}) for t in [-10, -1]           # cumulative over pre-earnings window
+Coverage: 1,967 symbols
+
+--- Signal 2: F&O Informed Positioning ---
+Theory: Pan & Poteshman (2006) — option order flow predicts stock returns.
+Construction:
+  a) OI-Price regime classification per stock-day (4 states: long_buildup, short_buildup, short_covering, long_unwinding)
+  b) PCR_OI = put_OI / call_OI (contrarian at extremes)
+  c) FII_bias vs Retail_bias divergence (aggregate level)
+  Composite: OI regime + PCR z-score + OI momentum
+Coverage: 282 F&O symbols
+
+--- Signal 3: Corporate Health Index (CHI) ---
+Theory: Jeng/Metrick/Zeckhauser (2003) — insider buying predicts returns, selling doesn't.
+Construction:
+  a) delta_PS = promoter_pct(q) - promoter_pct(q-1)
+  b) InsiderNetBuy = sum(acquisition_value) - sum(disposal_value), trailing 90 days
+  c) PledgeActivity = pledge_count - revoke_count, trailing 90 days
+  CHI = weighted composite, buying weighted more than selling (asymmetric)
+Coverage: 339 symbols
+
+--- Signal 4: Macro Sector Revenue Nowcaster ---
+Theory: Giannone/Reichlin/Small (2008) nowcasting framework.
+Construction:
+  Composite of GST YoY + IIP YoY + Credit Growth YoY
+  12-month trailing z-score for regime detection
+  Sector momentum from IIP sub-indices
+Coverage: Market-wide (uniform tilt applied to all stocks)
+
+--- Signal 5: Standardized Unexpected Earnings (SUE) ---
+Theory: Ball & Brown (1968), Bernard & Thomas (1989) — PEAD.
+Construction:
+  SUE_i = (EPS_q - EPS_{q-4}) / std(sequential EPS changes, trailing 8 quarters)
+  FM (Novy-Marx proxy) = avg(EPS, last 4 qtrs) - avg(EPS, prev 4 qtrs)
+Data source: screener.in quarterly EPS (1,142 symbols with data, 1,048 with 8+ quarters)
+Coverage: 1,048 symbols
+
+--- Signal 6: MasterScore (Composite) ---
+Theory: DeMiguel et al. (2009) — equal-weight often beats optimized weights.
+Construction:
+  MasterScore_i = mean(z-score of each available signal) + 0.1 * macro_z
+  Components: CADP, F&O, CHI, SUE, Momentum, Value+Quality (+ macro tilt). Smart-Money excluded (sparse).
+  Minimum 2 signals required. Cross-sectional z-score per signal.
+Coverage: 1,440 stocks with 2+ signals; 169 with full 6-signal coverage
+
+--- Signal 7: Price Momentum ---
+Theory: Jegadeesh & Titman (1993), Novy-Marx (2012), George & Hwang (2004, 52w-high).
+Construction:
+  ret_12_1 = close[t-21]/close[t-252] - 1   # skip last month to avoid 1-mo reversal
+  ret_6_1  = close[t-21]/close[t-126] - 1
+  pct_52w_high = close[t] / max(close, trailing 252d)
+  mom_score = 0.6*z(ret_12_1) + 0.4*z(pct_52w_high), winsorized ±3σ; 200DMA = trend flag
+  Liquidity gate: avg 20d turnover ≥ ₹1cr (turnover stored in LAKH units)
+  Gap handling: anchors at the last continuous ≥252-day block (equity_daily has a 367-day hole)
+Coverage: 1,244 liquid stocks, as-of anchor date (currently 2025-05-16 until backfill)
+
+--- Signal 8: Value + Quality ---
+Theory: Fama-French value (HML), Novy-Marx (2013) quality/profitability, Piotroski (2000, simplified).
+Construction:
+  Value  = mean z of [earnings_yield=1/PE (PE>0), book_to_price=BV/Price, dividend_yield]
+  Quality= mean z of [ROE, ROCE, -debt_to_equity, OPM_trend (last4-prev4 avg), profit_consistency (frac of 8q +ve)]
+  vq_score = 0.5*Value + 0.5*Quality (each winsorized ±3σ)
+  NOTE: full Piotroski F-score not possible (no cashflow/current-ratio data); this is an honest subset.
+Coverage: 1,170 stocks (cross-sectional snapshot from company_ratios + balance_sheet + quarterly_results)
+
+--- Signal 9: Smart-Money Flow (bulk/block deals) ---
+Theory: SEBI same-day large-trade disclosures as a read on institutional/HNI conviction.
+Construction:
+  Per symbol over trailing window: net_value = buy_value - sell_value (₹cr), n_unique_buyers,
+  repeat_accumulation = same client buying on 2+ distinct days. net_z = cross-sectional z of net_value.
+  STANDALONE — not in MasterScore (bulk/block history currently ~1 week; would inject noise).
+Coverage: 66 symbols (grows as daily bulk/block capture accumulates)
+
+=====================================
+ALREADY COMPUTED
+=====================================
+  [x] Signal 1 (CADP) → cadp_signal.parquet (1,967 symbols)
+  [x] Signal 2 (F&O) → fo_signals.parquet + participant_divergence.parquet (282 symbols)
+  [x] Signal 3 (CHI) → chi_signal.parquet (339 symbols)
+  [x] Signal 4 (Macro) → macro_nowcast.parquet (market-wide)
+  [x] Signal 5 (SUE) → sue_signal.parquet (1,048 symbols)
+  [x] Signal 6 (MasterScore) → master_score.parquet (1,440 scored, 2,254 total)
+  [x] Signal 7 (Momentum) → momentum_signal.parquet (1,244 ranked)
+  [x] Signal 8 (Value+Quality) → value_quality_signal.parquet (1,170)
+  [x] Signal 9 (Smart-Money) → smart_money_signal.parquet (66) + smart_money_deals.parquet
+  [x] Conviction Score → conviction_score.parquet (~1,499 scored, 0-100). Top (4+ blocks, 2026-05-27):
+      CHENNPETRO 99.8, NATIONALUM 99.7, MUTHOOTFIN 99.5, UNIPARTS 99.3, PFC 98.9
+  [x] Dashboard — 12 tabs, ~130 tooltips, light/dark, all signals
+  [x] Daily cron — Mon-Fri 9am EDT (6:30pm IST), full pipeline automation
+  [x] Screener scraper — 1,512 symbols, quarterly_results + balance_sheet + company_ratios
+
+=====================================
+DESIGN SYSTEM (from portfolio tracker)
+=====================================
+Fonts: Inter (UI), JetBrains Mono (numbers/code)
+Background: #0f1117 (base), #161b22 (surface), #1c2128 (elevated)
+Accent: #2563eb (blue)
+Text: #e6edf3 (primary), #8b949e (secondary), #484f58 (muted)
+Borders: #30363d
+Green: #3fb950 (positive), Red: #f85149 (negative)
+Style: dark, data-dense, no rounded corners on tables, monospace numbers

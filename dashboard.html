@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quant Signals — Data Viewer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0f1117;
+            --ink: #181a20;
+            --ink2: #1e2028;
+            --ink3: #262830;
+            --rule: #2a2d38;
+            --rule2: #363944;
+            --fg: #eaedf3;
+            --fg2: #8b8fa3;
+            --fg3: #5c6070;
+            --gold: #2563eb;
+            --gold-hover: #1d4ed8;
+            --gold-dim: rgba(37, 99, 235, 0.08);
+            --up: #16a34a;
+            --up-dim: rgba(22, 163, 74, 0.08);
+            --dn: #dc2626;
+            --dn-dim: rgba(220, 38, 38, 0.08);
+            --ice: #6366f1;
+            --ice-dim: rgba(99, 102, 241, 0.08);
+            --sans: 'Inter', -apple-system, sans-serif;
+            --mono: 'JetBrains Mono', 'SF Mono', monospace;
+        }
+
+        body {
+            font-family: var(--sans);
+            background: var(--bg);
+            color: var(--fg);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ─── Header ─────────────────────────────────── */
+        .header {
+            padding: 20px 32px;
+            border-bottom: 1px solid var(--rule);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--ink);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header h1 {
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+            color: var(--fg);
+        }
+
+        .header .version {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--fg3);
+            background: var(--ink3);
+            padding: 3px 8px;
+            border-radius: 4px;
+            letter-spacing: 0.02em;
+        }
+
+        .header .stats {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--fg3);
+        }
+
+        /* ─── Nav Hero (summary stats) ───────────────── */
+        .nav-hero {
+            display: grid;
+            grid-template-columns: 1fr 1px 1fr 1px 1fr 1px 1fr;
+            padding: 0 32px;
+            background: var(--ink);
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .nav-hero .divider {
+            background: var(--rule);
+            align-self: stretch;
+        }
+
+        .hero-stat {
+            padding: 20px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .hero-stat .label {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--fg3);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .hero-stat .value {
+            font-family: var(--mono);
+            font-size: 22px;
+            font-weight: 500;
+            color: var(--fg);
+            letter-spacing: -0.5px;
+        }
+
+        .hero-stat .sub {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--fg3);
+        }
+
+        /* ─── Tabs ───────────────────────────────────── */
+        .tabs {
+            display: flex;
+            gap: 0;
+            padding: 0 32px;
+            background: var(--ink);
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .tab {
+            padding: 13px 20px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--fg3);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s;
+        }
+
+        .tab:hover { color: var(--fg2); }
+        .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+        /* ─── Controls ───────────────────────────────── */
+        .controls {
+            padding: 16px 32px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            background: var(--bg);
+            border-bottom: 1px solid var(--rule);
+        }
+
+        input, select {
+            background: var(--ink);
+            border: 1px solid var(--rule);
+            color: var(--fg);
+            padding: 7px 14px;
+            border-radius: 6px;
+            font-family: var(--sans);
+            font-size: 12px;
+            font-weight: 500;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        input:focus, select:focus { border-color: var(--gold); }
+        input::placeholder { color: var(--fg3); }
+        input[type="text"] { width: 200px; }
+        input[type="date"] { width: 155px; font-family: var(--mono); font-size: 11px; }
+        select { cursor: pointer; }
+
+        /* ─── Table ──────────────────────────────────── */
+        .table-container {
+            padding: 0;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 10px 16px;
+            color: var(--fg3);
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            border-bottom: 1px solid var(--rule);
+            background: var(--ink);
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        th:hover { color: var(--fg2); }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--rule);
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        tr:hover td { background: var(--ink); }
+
+        .symbol-cell {
+            font-weight: 600;
+            color: var(--fg);
+            letter-spacing: -0.2px;
+        }
+
+        .num {
+            text-align: right;
+            font-family: var(--mono);
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+            color: var(--fg2);
+        }
+
+        .dim { color: var(--fg3); font-size: 12px; }
+
+        .positive { color: var(--up); }
+        .negative { color: var(--dn); }
+
+        /* ─── Badges ─────────────────────────────────── */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: var(--mono);
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .badge-up { background: var(--up-dim); color: var(--up); }
+        .badge-dn { background: var(--dn-dim); color: var(--dn); }
+        .badge-neutral { background: var(--ink3); color: var(--fg3); }
+        .badge-instrument { background: var(--ice-dim); color: var(--ice); }
+        .badge-gold { background: var(--gold-dim); color: var(--gold); }
+
+        /* ─── Delivery Bar ───────────────────────────── */
+        .delivery-cell {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .delivery-bar-track {
+            width: 48px;
+            height: 4px;
+            background: var(--ink3);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .delivery-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.2s;
+        }
+
+        .del-low { background: var(--dn); }
+        .del-mid { background: var(--gold); }
+        .del-high { background: var(--up); }
+
+        /* ─── Pagination ─────────────────────────────── */
+        .pagination {
+            padding: 14px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-top: 1px solid var(--rule);
+            background: var(--ink);
+        }
+
+        .pagination .info {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--fg3);
+        }
+
+        .pagination .buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .pagination button {
+            background: var(--ink2);
+            border: 1px solid var(--rule);
+            color: var(--fg2);
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: var(--sans);
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.15s;
+        }
+
+        .pagination button:hover { border-color: var(--gold); color: var(--fg); }
+        .pagination button:disabled { opacity: 0.25; cursor: not-allowed; }
+
+        /* ─── Loading ────────────────────────────────── */
+        .loading {
+            padding: 80px 32px;
+            text-align: center;
+            color: var(--fg3);
+            font-size: 13px;
+        }
+
+        .loading .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--rule);
+            border-top-color: var(--gold);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>Quant Signals</h1>
+            <span class="version">data viewer</span>
+        </div>
+        <div class="stats" id="global-stats"></div>
+    </div>
+
+    <div class="nav-hero" id="nav-hero" style="display:none;">
+        <div class="hero-stat">
+            <span class="label">Equity Rows</span>
+            <span class="value" id="hero-eq-rows">—</span>
+            <span class="sub" id="hero-eq-range"></span>
+        </div>
+        <div class="divider"></div>
+        <div class="hero-stat">
+            <span class="label">F&O Rows</span>
+            <span class="value" id="hero-fo-rows">—</span>
+            <span class="sub" id="hero-fo-range"></span>
+        </div>
+        <div class="divider"></div>
+        <div class="hero-stat">
+            <span class="label">Trading Days</span>
+            <span class="value" id="hero-days">—</span>
+            <span class="sub" id="hero-days-sub"></span>
+        </div>
+        <div class="divider"></div>
+        <div class="hero-stat">
+            <span class="label">Viewing</span>
+            <span class="value" id="hero-filtered">—</span>
+            <span class="sub">rows after filters</span>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <div class="tab active" data-tab="equity">Equity Daily</div>
+        <div class="tab" data-tab="fo">F&O Daily</div>
+    </div>
+
+    <div class="controls" id="controls-equity">
+        <input type="text" id="eq-symbol" placeholder="Search symbol..." />
+        <input type="date" id="eq-date" />
+        <select id="eq-series">
+            <option value="">All Series</option>
+            <option value="EQ" selected>EQ</option>
+            <option value="BE">BE</option>
+            <option value="SM">SM</option>
+        </select>
+        <select id="eq-sort">
+            <option value="delivery_pct-desc">Delivery % High → Low</option>
+            <option value="delivery_pct-asc">Delivery % Low → High</option>
+            <option value="volume-desc">Volume High → Low</option>
+            <option value="close-desc">Price High → Low</option>
+            <option value="symbol-asc">Symbol A → Z</option>
+        </select>
+    </div>
+
+    <div class="controls" id="controls-fo" style="display:none;">
+        <input type="text" id="fo-symbol" placeholder="Search symbol..." />
+        <input type="date" id="fo-date" />
+        <select id="fo-instrument">
+            <option value="">All Instruments</option>
+            <option value="FUTSTK">Stock Futures</option>
+            <option value="FUTIDX">Index Futures</option>
+            <option value="OPTSTK">Stock Options</option>
+            <option value="OPTIDX">Index Options</option>
+        </select>
+        <select id="fo-sort">
+            <option value="oi-desc">OI High → Low</option>
+            <option value="oi_change-desc">OI Change High → Low</option>
+            <option value="oi_change-asc">OI Change Low → High</option>
+            <option value="contracts-desc">Contracts High → Low</option>
+            <option value="symbol-asc">Symbol A → Z</option>
+        </select>
+    </div>
+
+    <div class="table-container">
+        <table id="data-table">
+            <thead id="table-head"></thead>
+            <tbody id="table-body"></tbody>
+        </table>
+    </div>
+
+    <div class="pagination">
+        <span class="info" id="page-info"></span>
+        <div class="buttons">
+            <button id="btn-prev" disabled>Prev</button>
+            <button id="btn-next">Next</button>
+        </div>
+    </div>
+
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        Loading data...
+    </div>
+
+    <script>
+    const PAGE_SIZE = 100;
+    let currentTab = 'equity';
+    let equityData = [];
+    let foData = [];
+    let filteredData = [];
+    let currentPage = 0;
+    let availableDates = { equity: [], fo: [] };
+
+    async function loadData() {
+        document.getElementById('loading').style.display = 'block';
+
+        try {
+            const [eqResp, foResp] = await Promise.all([
+                fetch('data/export/equity_daily.json'),
+                fetch('data/export/fo_daily.json'),
+            ]);
+            if (eqResp.ok) equityData = await eqResp.json();
+            if (foResp.ok) foData = await foResp.json();
+        } catch(e) {
+            console.error('Load failed:', e);
+        }
+
+        if (equityData.length === 0) {
+            document.getElementById('loading').innerHTML =
+                '<div style="color:var(--fg2)">No data exported yet.<br><code style="color:var(--gold);font-family:var(--mono)">python3 export_for_dashboard.py</code></div>';
+            return;
+        }
+
+        availableDates.equity = [...new Set(equityData.map(r => r.trade_date))].sort();
+        availableDates.fo = [...new Set(foData.map(r => r.trade_date))].sort();
+
+        const eqDateInput = document.getElementById('eq-date');
+        const foDateInput = document.getElementById('fo-date');
+        if (availableDates.equity.length) eqDateInput.value = availableDates.equity[availableDates.equity.length - 1];
+        if (availableDates.fo.length) foDateInput.value = availableDates.fo[availableDates.fo.length - 1];
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('nav-hero').style.display = 'grid';
+        updateHero();
+        applyFilters();
+    }
+
+    function updateHero() {
+        document.getElementById('hero-eq-rows').textContent = equityData.length.toLocaleString('en-IN');
+        document.getElementById('hero-fo-rows').textContent = foData.length.toLocaleString('en-IN');
+        document.getElementById('hero-days').textContent = availableDates.equity.length;
+
+        const eqDates = availableDates.equity;
+        const foDates = availableDates.fo;
+        document.getElementById('hero-eq-range').textContent = eqDates.length ? `${eqDates[0]} to ${eqDates[eqDates.length-1]}` : '';
+        document.getElementById('hero-fo-range').textContent = foDates.length ? `${foDates[0]} to ${foDates[foDates.length-1]}` : '';
+        document.getElementById('hero-days-sub').textContent = 'loaded in viewer';
+    }
+
+    function applyFilters() {
+        let data = currentTab === 'equity' ? equityData : foData;
+
+        if (currentTab === 'equity') {
+            const symbol = document.getElementById('eq-symbol').value.toUpperCase().trim();
+            const date = document.getElementById('eq-date').value;
+            const series = document.getElementById('eq-series').value;
+            const [sortKey, sortDir] = document.getElementById('eq-sort').value.split('-');
+
+            if (date) data = data.filter(r => r.trade_date === date);
+            if (symbol) data = data.filter(r => r.symbol.includes(symbol));
+            if (series) data = data.filter(r => r.series === series);
+
+            data.sort((a, b) => {
+                let va = a[sortKey], vb = b[sortKey];
+                if (typeof va === 'string') return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+                return sortDir === 'asc' ? (va||0) - (vb||0) : (vb||0) - (va||0);
+            });
+        } else {
+            const symbol = document.getElementById('fo-symbol').value.toUpperCase().trim();
+            const date = document.getElementById('fo-date').value;
+            const instrument = document.getElementById('fo-instrument').value;
+            const [sortKey, sortDir] = document.getElementById('fo-sort').value.split('-');
+
+            if (date) data = data.filter(r => r.trade_date === date);
+            if (symbol) data = data.filter(r => r.symbol.includes(symbol));
+            if (instrument) data = data.filter(r => r.instrument === instrument);
+
+            data.sort((a, b) => {
+                let va = a[sortKey], vb = b[sortKey];
+                if (typeof va === 'string') return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+                return sortDir === 'asc' ? (va||0) - (vb||0) : (vb||0) - (va||0);
+            });
+        }
+
+        filteredData = data;
+        currentPage = 0;
+        document.getElementById('hero-filtered').textContent = filteredData.length.toLocaleString('en-IN');
+        renderTable();
+    }
+
+    function deliveryBarClass(pct) {
+        if (pct >= 70) return 'del-high';
+        if (pct >= 45) return 'del-mid';
+        return 'del-low';
+    }
+
+    function renderTable() {
+        const thead = document.getElementById('table-head');
+        const tbody = document.getElementById('table-body');
+        const start = currentPage * PAGE_SIZE;
+        const end = start + PAGE_SIZE;
+        const pageData = filteredData.slice(start, end);
+
+        if (currentTab === 'equity') {
+            thead.innerHTML = `<tr>
+                <th>Symbol</th><th>Series</th><th>Date</th>
+                <th class="num">Open</th><th class="num">High</th><th class="num">Low</th><th class="num">Close</th>
+                <th class="num">Volume</th><th class="num">Del. Qty</th><th class="num">Delivery %</th>
+            </tr>`;
+            tbody.innerHTML = pageData.map(r => {
+                const pct = r.delivery_pct;
+                const barW = pct != null ? Math.min(pct, 100) : 0;
+                return `<tr>
+                    <td class="symbol-cell">${r.symbol}</td>
+                    <td><span class="badge badge-neutral">${r.series || ''}</span></td>
+                    <td class="dim">${r.trade_date}</td>
+                    <td class="num">${fmt(r.open)}</td>
+                    <td class="num">${fmt(r.high)}</td>
+                    <td class="num">${fmt(r.low)}</td>
+                    <td class="num" style="color:var(--fg)">${fmt(r.close)}</td>
+                    <td class="num">${fmtInt(r.volume)}</td>
+                    <td class="num">${fmtInt(r.delivery_qty)}</td>
+                    <td class="num"><div class="delivery-cell">
+                        <span>${pct != null ? pct.toFixed(1) + '%' : '—'}</span>
+                        <div class="delivery-bar-track"><div class="delivery-bar-fill ${deliveryBarClass(barW)}" style="width:${barW}%"></div></div>
+                    </div></td>
+                </tr>`;
+            }).join('');
+        } else {
+            thead.innerHTML = `<tr>
+                <th>Symbol</th><th>Instrument</th><th>Date</th><th>Expiry</th>
+                <th class="num">Strike</th><th>Type</th>
+                <th class="num">Close</th><th class="num">Contracts</th>
+                <th class="num">OI</th><th class="num">OI Change</th>
+            </tr>`;
+            tbody.innerHTML = pageData.map(r => {
+                const oiChange = r.oi_change || 0;
+                const oiBadge = oiChange > 0 ? 'badge-up' : oiChange < 0 ? 'badge-dn' : 'badge-neutral';
+                return `<tr>
+                    <td class="symbol-cell">${r.symbol}</td>
+                    <td><span class="badge badge-instrument">${r.instrument || ''}</span></td>
+                    <td class="dim">${r.trade_date}</td>
+                    <td class="dim">${r.expiry || ''}</td>
+                    <td class="num">${r.strike ? fmt(r.strike) : '—'}</td>
+                    <td>${r.option_type ? `<span class="badge ${r.option_type === 'CE' ? 'badge-up' : 'badge-dn'}">${r.option_type}</span>` : '<span class="dim">—</span>'}</td>
+                    <td class="num" style="color:var(--fg)">${fmt(r.close)}</td>
+                    <td class="num">${fmtInt(r.contracts)}</td>
+                    <td class="num">${fmtInt(r.oi)}</td>
+                    <td class="num"><span class="badge ${oiBadge}">${oiChange >= 0 ? '+' : ''}${fmtInt(oiChange)}</span></td>
+                </tr>`;
+            }).join('');
+        }
+
+        const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
+        document.getElementById('page-info').textContent =
+            `Showing ${start + 1}–${Math.min(end, filteredData.length)} of ${filteredData.length.toLocaleString('en-IN')} rows`;
+        document.getElementById('btn-prev').disabled = currentPage === 0;
+        document.getElementById('btn-next').disabled = currentPage >= totalPages - 1;
+    }
+
+    function fmt(v) { return v != null ? Number(v).toLocaleString('en-IN', {maximumFractionDigits: 2}) : '—'; }
+    function fmtInt(v) { return v != null ? Number(v).toLocaleString('en-IN') : '—'; }
+
+    // Events
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            currentTab = tab.dataset.tab;
+            document.getElementById('controls-equity').style.display = currentTab === 'equity' ? 'flex' : 'none';
+            document.getElementById('controls-fo').style.display = currentTab === 'fo' ? 'flex' : 'none';
+            applyFilters();
+        });
+    });
+
+    document.querySelectorAll('#controls-equity input, #controls-equity select').forEach(el => {
+        el.addEventListener('input', applyFilters);
+        el.addEventListener('change', applyFilters);
+    });
+
+    document.querySelectorAll('#controls-fo input, #controls-fo select').forEach(el => {
+        el.addEventListener('input', applyFilters);
+        el.addEventListener('change', applyFilters);
+    });
+
+    document.getElementById('btn-prev').addEventListener('click', () => { currentPage--; renderTable(); });
+    document.getElementById('btn-next').addEventListener('click', () => { currentPage++; renderTable(); });
+
+    loadData();
+    </script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+# Conviction Score — Methodology
+
+The **Conviction Score** is the unified composite that fuses every signal into one 0–100
+number. It supersedes the naive MasterScore (`mean(z) + 0.1·macro`), which had three flaws:
+theme double-counting, thin-evidence overconfidence, and outlier domination.
+
+Implementation: `src/signals/conviction_score.py`. Output: `data/conviction_score.parquet`.
+
+---
+
+## Construction, step by step (and the literature behind each choice)
+
+| # | Step | What it does | Why — literature |
+|---|------|--------------|------------------|
+| 1 | **Robust rank → normal** | Each signal → cross-sectional percentile rank → inverse-normal score (Acklam ppf), winsorized ±3σ. Every signal becomes ~N(0,1) by rank, so no single outlier dominates. | Normal-scores / van der Waerden transform — **Blom (1958)**. Rank-standardizing factors: **Asness, Moskowitz & Pedersen (2013)**. |
+| 2 | **6 factor blocks** | Collapse correlated signals into themes: `Earnings` (SUE+FM), `Value`, `Quality`, `Momentum`, `Flow` (F&O+CADP+CHI+smart-money), + a `Macro` tilt. Average *within* a block, weight *across* blocks — so a theme with many sub-signals can't cast extra votes. | Factor-zoo redundancy: **Cochrane (2011)**, **Harvey, Liu & Zhu (2016)**, **Green, Hand & Zhang (2017)**. |
+| 3 | **Coverage shrinkage** | Composite × `n_blocks / (n_blocks + 2.5)`. Thin-evidence names pulled toward neutral; full-coverage names keep full strength. | Shrinkage estimators dominate MLE: **James & Stein (1961)**; **Jorion (1986)**; **Ledoit & Wolf (2004)**. |
+| 4 | **Agreement multiplier** | × `(0.5 + 0.5·agreement)`, where agreement = share of present blocks whose sign matches the composite. Consensus rewarded, conflict haircut. | Averaging independent signals raises effective IC: Fundamental Law of Active Management — **Grinold (1989)**. |
+| 5 | **Interaction guards** | `+ λ·ReLU(Value)·ReLU(Quality)` and `+ λ·ReLU(Momentum)·ReLU(Quality)` (λ=0.06), folded in *before* shrinkage. Rewards *confirmed* cheap-and-good / trend-and-good; implicitly penalizes value traps and junk momentum. | Value traps: **Piotroski (2000)**. Quality: **Novy-Marx (2013)**, **Asness, Frazzini & Pedersen (2019) "Quality Minus Junk"**. |
+| 6 | **0–100 map** | Standardize the final score, map through a logistic (`100/(1+e^(−1.7z))`). 50 = median. | Monotone squashing for interpretability. |
+
+Momentum block itself rests on **Jegadeesh & Titman (1993)** and the 52-week-high effect of **George & Hwang (2004)**.
+
+---
+
+## The weighting stance (important)
+
+Cross-block weights are **EQUAL** (`BLOCK_WEIGHTS = {1,1,1,1,1}`), and deliberately so:
+
+- **DeMiguel, Garlappi & Uppal (2009)** — across 14 datasets, naive 1/N beats mean-variance
+  optimization out-of-sample, because estimation error swamps the optimizer's theoretical gains.
+  When you can't reliably estimate weights, equal-weighting is the safer bet.
+- **McLean & Pontiff (2016)** and **Harvey, Liu & Zhu (2016)** — published anomalies decay
+  post-publication and most "discovered" factors are multiple-testing artifacts. Aggressively
+  fitting weights now would overfit a single snapshot.
+
+### Weights are NOT fitted to data
+None of the dials — block weights, the 0.6/0.4 momentum blend, shrinkage K=2.5, λ=0.06,
+winsor ±3, logistic ×1.7 — were estimated from returns. They are **priors and conventions**.
+Recomputing on fresh data changes the *inputs*, never these coefficients.
+
+The one exception, disclosed: K was nudged 1.5 → 2.5 after observing 2-block names topping the
+in-sample cross-section. That is eyeballing, not validation.
+
+### How weights become legitimate
+Only the **IC-validation layer** (pending) can set evidence-based weights:
+1. reconstruct each signal's values at past month-ends,
+2. measure the information coefficient vs. subsequent 1/3/6-month returns,
+3. set block weights from the measured ICs.
+
+This is now *computable* (the price backfill provides forward returns) but **not yet done**.
+Until then: treat the leaderboard as *structurally sensible*, not *empirically optimal*.
+
+---
+
+## Key references
+
+- Asness, Frazzini & Pedersen (2019). *Quality Minus Junk.* Review of Accounting Studies.
+- Asness, Moskowitz & Pedersen (2013). *Value and Momentum Everywhere.* Journal of Finance.
+- Blom (1958). *Statistical Estimates and Transformed Beta-Variables.*
+- Cochrane (2011). *Presidential Address: Discount Rates.* Journal of Finance.
+- DeMiguel, Garlappi & Uppal (2009). *Optimal Versus Naive Diversification.* RFS.
+- George & Hwang (2004). *The 52-Week High and Momentum Investing.* Journal of Finance.
+- Green, Hand & Zhang (2017). *The Characteristics that Provide Independent Information…* RFS.
+- Grinold (1989). *The Fundamental Law of Active Management.* JPM.
+- Harvey, Liu & Zhu (2016). *…and the Cross-Section of Expected Returns.* RFS.
+- James & Stein (1961). *Estimation with Quadratic Loss.* Berkeley Symposium.
+- Jegadeesh & Titman (1993). *Returns to Buying Winners and Selling Losers.* Journal of Finance.
+- Jorion (1986). *Bayes-Stein Estimation for Portfolio Analysis.* JFQA.
+- Ledoit & Wolf (2004). *Honey, I Shrunk the Sample Covariance Matrix.* JPM.
+- McLean & Pontiff (2016). *Does Academic Research Destroy Stock Return Predictability?* JF.
+- Novy-Marx (2013). *The Other Side of Value: The Gross Profitability Premium.* JFE.
+- Piotroski (2000). *Value Investing: …Separate Winners from Losers.* Journal of Accounting Research.

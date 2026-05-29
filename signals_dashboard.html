@@ -1,0 +1,1773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quant Signals — Command Center</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #f5f6f8;
+  --ink: #ffffff;
+  --ink2: #f8f9fa;
+  --ink3: #f0f1f3;
+  --rule: #e5e7eb;
+  --rule2: #d1d5db;
+  --gold: #2563eb;
+  --gold2: #1d4ed8;
+  --golddim: rgba(37,99,235,0.08);
+  --up: #16a34a;
+  --updim: rgba(22,163,74,0.08);
+  --dn: #dc2626;
+  --dndim: rgba(220,38,38,0.08);
+  --ice: #6366f1;
+  --icedim: rgba(99,102,241,0.08);
+  --amber: #f59e0b;
+  --amberdim: rgba(245,158,11,0.08);
+  --fg: #111827;
+  --fg2: #6b7280;
+  --fg3: #9ca3af;
+}
+
+[data-theme="dark"] {
+  --bg: #0f1117;
+  --ink: #1a1d27;
+  --ink2: #22262f;
+  --ink3: #2a2e3a;
+  --rule: #2e3340;
+  --rule2: #3a3f4e;
+  --gold: #4f8ff7;
+  --gold2: #3b7ee8;
+  --golddim: rgba(79,143,247,0.12);
+  --up: #34d399;
+  --updim: rgba(52,211,153,0.12);
+  --dn: #f87171;
+  --dndim: rgba(248,113,113,0.12);
+  --ice: #818cf8;
+  --icedim: rgba(129,140,248,0.12);
+  --amber: #fbbf24;
+  --amberdim: rgba(251,191,36,0.12);
+  --fg: #e5e7eb;
+  --fg2: #9ca3af;
+  --fg3: #6b7280;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html { font-size:15px; overflow-x:hidden; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 400;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app { position:relative; z-index:1; max-width:1400px; margin:0 auto; overflow-x:hidden; }
+
+/* ─── HEADER ─── */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: var(--ink);
+  border-bottom: 1px solid var(--rule);
+  flex-wrap: wrap; gap: 8px;
+}
+.hdr-left { display:flex; flex-direction:column; gap:2px; }
+.firm-name {
+  font-size: 18px; font-weight: 700; letter-spacing: -0.01em;
+  color: var(--fg);
+}
+.firm-name span { color: var(--gold); font-family: 'JetBrains Mono', monospace; }
+.firm-sub { font-size: 12px; color: var(--fg2); font-family: 'JetBrains Mono', monospace; }
+.hdr-right { display:flex; justify-content:flex-end; align-items:center; gap:6px; flex-wrap:wrap; }
+
+.hdr-pill {
+  display:flex; align-items:center; gap:5px;
+  padding: 7px 14px; border-radius:6px; border:1px solid var(--rule);
+  font-size: 12px; color: var(--fg2);
+  font-family: 'Inter', sans-serif; cursor:pointer; transition: all 0.15s;
+  background: var(--ink); font-weight: 500;
+}
+.hdr-pill:hover { border-color: var(--gold); color: var(--gold); }
+
+.dot { width:7px; height:7px; border-radius:50%; }
+.dot-live { background: var(--up); animation: pulse 2.5s infinite; }
+@keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,0.4);} 50%{box-shadow:0 0 0 5px rgba(22,163,74,0);} }
+
+/* ─── NAV HERO ─── */
+.nav-hero {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr 1px 1fr 1px 1fr;
+  gap: 0;
+  padding: 28px 24px;
+  background: var(--ink);
+  border-bottom: 1px solid var(--rule);
+  overflow: hidden;
+}
+.nav-divider { background: var(--rule); }
+.nav-block { padding: 0 16px; min-width: 0; overflow: hidden; }
+.nav-block:first-child { padding-left: 0; }
+.nav-block:last-child { padding-right: 0; }
+.nb-label {
+  font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--fg3); margin-bottom: 8px;
+}
+.nb-main {
+  font-size: 28px; font-weight: 700; line-height: 1; color: var(--fg);
+  letter-spacing: -0.02em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nb-main.up { color: var(--up); }
+.nb-main.dn { color: var(--dn); }
+.nb-main.gold { color: var(--gold); }
+.nb-sub { font-size: 11px; color: var(--fg3); margin-top: 6px; font-family: 'JetBrains Mono', monospace; }
+.nb-delta { display:flex; align-items:center; gap:5px; margin-top:8px; flex-wrap:wrap; }
+.delta-badge {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  padding: 3px 8px; border-radius: 4px; font-weight: 500;
+}
+.db-up { background: var(--updim); color: var(--up); }
+.db-dn { background: var(--dndim); color: var(--dn); }
+.db-neu { background: var(--ink3); color: var(--fg2); }
+.db-ice { background: var(--icedim); color: var(--ice); }
+.db-amber { background: var(--amberdim); color: var(--amber); }
+
+/* ─── TAB NAV ─── */
+.tab-nav {
+  display: flex; gap: 0; border-bottom: 1px solid var(--rule);
+  padding: 0 24px; background: var(--ink);
+}
+.tnav-btn {
+  padding: 14px 20px; font-size: 13px; font-weight: 500;
+  color: var(--fg3); background: transparent; border: none; border-bottom: 2px solid transparent;
+  cursor: pointer; font-family: 'Inter', sans-serif;
+  transition: all 0.15s; margin-bottom: -1px;
+}
+.tnav-btn:hover { color: var(--fg); }
+.tnav-btn.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+/* ─── MAIN ─── */
+.main { padding: 24px 24px; display: grid; gap: 20px; max-width: 100%; overflow-x: hidden; }
+.main > * { min-width: 0; }
+.panel { display:none; }
+.panel.active { display:grid; gap:20px; }
+
+/* ─── DATA CARD ─── */
+.data-card {
+  background: var(--ink); border: 1px solid var(--rule);
+  border-radius: 8px; overflow: hidden;
+}
+.dc-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--rule);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.dc-title { font-size: 14px; font-weight: 600; }
+.dc-count { font-size: 11px; color: var(--fg3); font-family: 'JetBrains Mono', monospace; }
+
+/* ─── CHART CARD ─── */
+.chart-card {
+  background: var(--ink); border: 1px solid var(--rule);
+  border-radius: 8px; overflow: hidden;
+}
+.chart-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 20px; border-bottom: 1px solid var(--rule);
+}
+.ch-title { font-size: 14px; font-weight: 600; }
+.ch-sub { font-size: 11px; color: var(--fg3); }
+.chart-body { padding: 16px; position: relative; }
+.chart-body canvas { max-height: 240px; width: 100%; }
+
+/* ─── TABLE ─── */
+.pos-table { width:100%; border-collapse:collapse; }
+.pos-table th {
+  padding: 10px 16px; text-align: left;
+  font-size: 11px; color: var(--fg3);
+  font-weight: 500; border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+.pos-table th.r { text-align: right; }
+.pos-table td {
+  padding: 11px 16px; font-size: 13px; border-bottom: 1px solid var(--rule);
+  vertical-align: middle;
+}
+.pos-table td.r { text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.pos-table td.mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.pos-table tbody tr:last-child td { border-bottom: none; }
+.pos-table tbody tr:hover td { background: var(--ink2); }
+
+.script-name { font-weight: 600; color: var(--fg); }
+
+.up { color: var(--up); }
+.dn { color: var(--dn); }
+
+/* ─── PILLS ─── */
+.pill {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 10px; font-weight: 600; font-family: 'JetBrains Mono', monospace;
+}
+.pill-up { background: var(--updim); color: var(--up); }
+.pill-dn { background: var(--dndim); color: var(--dn); }
+.pill-gold { background: var(--golddim); color: var(--gold); }
+.pill-ice { background: var(--icedim); color: var(--ice); }
+.pill-amber { background: var(--amberdim); color: var(--amber); }
+.pill-neu { background: var(--ink3); color: var(--fg2); }
+
+/* ─── BARS ─── */
+.bar-wrap { height: 4px; background: var(--ink3); border-radius: 2px; overflow:hidden; }
+.bar-fill { height:100%; border-radius: 2px; }
+.bar-up { background: var(--up); }
+.bar-dn { background: var(--dn); }
+.bar-gold { background: var(--gold); }
+.bar-ice { background: var(--ice); }
+
+/* ─── FILTER BAR ─── */
+.filter-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 20px; border-bottom: 1px solid var(--rule);
+  background: var(--ink); flex-wrap: wrap;
+}
+.filter-bar label {
+  font-size: 10px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--fg3);
+}
+.filter-bar input {
+  flex: 1; min-width: 120px; max-width: 200px;
+  background: var(--ink2); border: 1px solid var(--rule);
+  border-radius: 6px; padding: 8px 12px;
+  color: var(--fg); font-family: 'Inter', sans-serif; font-size: 13px;
+  outline: none; transition: border-color 0.15s;
+}
+.filter-bar input:focus { border-color: var(--gold); }
+.filter-bar input::placeholder { color: var(--fg3); }
+.filter-bar select {
+  padding: 8px 12px; border-radius: 6px; border: 1px solid var(--rule);
+  background: var(--ink2); color: var(--fg); font-size: 12px;
+  font-family: 'Inter', sans-serif; cursor: pointer; outline: none;
+}
+.filter-bar select:focus { border-color: var(--gold); }
+
+/* ─── SECTION ─── */
+.section-head {
+  font-size: 15px; font-weight: 600; margin-bottom: 14px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--rule);
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.section-sub { font-size: 11px; color: var(--fg3); font-family: 'JetBrains Mono', monospace; }
+
+/* ─── GRIDS ─── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+.span-2 { grid-column: span 2; }
+
+/* ─── STAT STRIP ─── */
+.stat-strip {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  border-bottom: 1px solid var(--rule); background: var(--ink);
+}
+.stat-strip-3 { grid-template-columns: repeat(3, 1fr); }
+.sstat {
+  padding: 18px 20px; border-right: 1px solid var(--rule);
+}
+.sstat:last-child { border-right: none; }
+.sstat-label {
+  font-size: 10px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--fg3); margin-bottom: 6px;
+}
+.sstat-val {
+  font-size: 22px; font-weight: 700; line-height: 1; color: var(--fg);
+  letter-spacing: -0.02em;
+}
+.sstat-sub { font-size: 11px; color: var(--fg3); margin-top: 4px; font-family: 'JetBrains Mono', monospace; }
+
+/* ─── METRICS GRID ─── */
+.metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.metric-row {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--rule);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.metric-row:nth-child(odd) { border-right: 1px solid var(--rule); }
+.metric-row:last-child, .metric-row:nth-last-child(2):nth-child(odd) { border-bottom: none; }
+.met-key { font-size: 12px; color: var(--fg2); }
+.met-val { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; }
+
+/* ─── TOOLTIP ─── */
+.htip-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 1px solid var(--rule2); color: var(--fg3);
+  font-size: 9px; font-weight: 600; font-family: 'Inter', sans-serif;
+  cursor: help; flex-shrink: 0; transition: all 0.15s;
+  margin-left: 4px; vertical-align: middle; line-height: 1;
+}
+.htip-icon:hover { border-color: var(--gold); color: var(--gold); }
+#tooltip {
+  display: none; position: fixed;
+  background: var(--ink2); border: 1px solid var(--rule2);
+  border-radius: 8px; padding: 10px 14px;
+  min-width: 200px; max-width: 300px;
+  font-size: 12px; font-weight: 400; line-height: 1.55;
+  color: var(--fg); z-index: 10000;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  pointer-events: none; font-family: 'Inter', sans-serif;
+}
+#tooltip::before {
+  content: ''; position: absolute; top: -5px; left: var(--arrow-left, 20px);
+  width: 8px; height: 8px; background: var(--ink2);
+  border-left: 1px solid var(--rule2); border-top: 1px solid var(--rule2);
+  transform: rotate(45deg);
+}
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--rule); border-radius:3px; }
+
+/* ─── ANIMATIONS ─── */
+@keyframes fadeIn { from{opacity:0;transform:translateY(6px);} to{opacity:1;transform:translateY(0);} }
+.nav-block { animation: fadeIn 0.4s ease both; }
+.nav-block:nth-child(1){animation-delay:.05s}
+.nav-block:nth-child(3){animation-delay:.1s}
+.nav-block:nth-child(5){animation-delay:.15s}
+.nav-block:nth-child(7){animation-delay:.2s}
+
+/* ─── RESPONSIVE ─── */
+@media(max-width:900px){
+  .nav-hero { grid-template-columns: 1fr 1px 1fr; }
+  .grid-3 { grid-template-columns: 1fr 1fr; }
+  .stat-strip { grid-template-columns: 1fr 1fr; }
+}
+@media(max-width:600px){
+  .nav-hero { grid-template-columns: 1fr; }
+  .grid-2,.grid-3 { grid-template-columns: 1fr; }
+  .stat-strip,.stat-strip-3 { grid-template-columns: 1fr; }
+  .main { padding: 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+<!-- ─── HEADER ─── -->
+<div class="header">
+    <div class="hdr-left">
+        <div class="firm-name"><span>QS</span> Quant Signals</div>
+        <div class="firm-sub" id="headerMeta">Loading...</div>
+    </div>
+    <div class="hdr-right">
+        <div class="hdr-pill"><div class="dot dot-live"></div> Live</div>
+        <button class="hdr-pill" id="theme-toggle" onclick="toggleTheme()">&#9790; Dark</button>
+    </div>
+</div>
+
+<!-- ─── NAV HERO ─── -->
+<div class="nav-hero" id="navHero">
+    <div class="nav-block">
+        <div class="nb-label">Macro Z-Score <span class="htip-icon" data-tip="macro_zscore">?</span></div>
+        <div class="nb-main" id="heroZscore">—</div>
+        <div class="nb-sub" id="heroZscoreDate">—</div>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-block">
+        <div class="nb-label">FII-Retail Divergence <span class="htip-icon" data-tip="fii_div">?</span></div>
+        <div class="nb-main" id="heroDiv">—</div>
+        <div class="nb-sub" id="heroDivSub">—</div>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-block">
+        <div class="nb-label">F&amp;O Regime Today <span class="htip-icon" data-tip="fo_regime">?</span></div>
+        <div class="nb-main" id="heroRegime">—</div>
+        <div class="nb-sub" id="heroRegimeSub">—</div>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-block">
+        <div class="nb-label">Top Conviction <span class="htip-icon" data-tip="conv_hero">?</span></div>
+        <div class="nb-main" id="heroMaster">—</div>
+        <div class="nb-sub" id="heroMasterSub">—</div>
+    </div>
+</div>
+
+<!-- ─── TAB NAV ─── -->
+<div class="tab-nav" id="tabs">
+    <button class="tnav-btn active" data-tab="overview">Overview</button>
+    <button class="tnav-btn" data-tab="conviction">Conviction</button>
+    <button class="tnav-btn" data-tab="master">MasterScore</button>
+    <button class="tnav-btn" data-tab="momentum">Momentum</button>
+    <button class="tnav-btn" data-tab="value">Value &amp; Quality</button>
+    <button class="tnav-btn" data-tab="sue">Earnings Surprise</button>
+    <button class="tnav-btn" data-tab="smart">Smart Money</button>
+    <button class="tnav-btn" data-tab="fo">F&O Positioning</button>
+    <button class="tnav-btn" data-tab="chi">Corporate Health</button>
+    <button class="tnav-btn" data-tab="macro">Macro Pulse</button>
+    <button class="tnav-btn" data-tab="insider">Insider Activity</button>
+    <button class="tnav-btn" data-tab="earnings">Earnings Calendar</button>
+</div>
+
+<!-- ─── MAIN ─── -->
+<div class="main">
+
+<!-- ══════════════════ OVERVIEW ══════════════════ -->
+<div class="panel active" id="panel-overview">
+
+    <div class="grid-2">
+        <!-- Sector IIP -->
+        <div class="data-card">
+            <div class="dc-header">
+                <div class="dc-title">Sector IIP Momentum <span class="htip-icon" data-tip="sector_iip">?</span></div>
+                <div class="dc-count">Latest Month</div>
+            </div>
+            <div id="sectorTable" style="overflow-x:auto"></div>
+        </div>
+        <!-- Macro Z-Score Chart -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <div>
+                    <div class="ch-title">Macro Momentum Z-Score <span class="htip-icon" data-tip="macro_chart">?</span></div>
+                    <div class="ch-sub">12-month trailing</div>
+                </div>
+            </div>
+            <div class="chart-body">
+                <canvas id="macroChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- F&O Top 20 -->
+    <div class="data-card">
+        <div class="dc-header">
+            <div class="dc-title">F&amp;O — Most Bullish Today <span class="htip-icon" data-tip="fo_bullish_top">?</span></div>
+            <div class="dc-count">Top 20</div>
+        </div>
+        <div id="foBullishTable" style="overflow-x:auto"></div>
+    </div>
+
+    <!-- CHI Top -->
+    <div class="data-card">
+        <div class="dc-header">
+            <div class="dc-title">Corporate Health — Strongest <span class="htip-icon" data-tip="chi_strongest">?</span></div>
+            <div class="dc-count">Latest Quarter</div>
+        </div>
+        <div id="chiTopTable" style="overflow-x:auto"></div>
+    </div>
+
+</div>
+
+<!-- ══════════════════ F&O ══════════════════ -->
+<div class="panel" id="panel-fo">
+
+    <div class="data-card">
+        <div class="dc-header">
+            <div class="dc-title">F&amp;O Stock Signals — Latest Day <span class="htip-icon" data-tip="fo_signals">?</span></div>
+        </div>
+        <div class="filter-bar">
+            <label>Search</label>
+            <input type="text" id="foSearch" placeholder="Symbol...">
+            <label>Regime</label>
+            <select id="foRegime">
+                <option value="">All</option>
+                <option>long_buildup</option>
+                <option>short_buildup</option>
+                <option>short_covering</option>
+                <option>long_unwinding</option>
+            </select>
+            <label>Sort</label>
+            <select id="foSort">
+                <option value="fo_bullish_raw_desc">Bullish &#8595;</option>
+                <option value="fo_bullish_raw_asc">Bullish &#8593;</option>
+                <option value="oi_desc">OI &#8595;</option>
+                <option value="pcr_oi_desc">PCR &#8595;</option>
+            </select>
+        </div>
+        <div id="foFullTable" style="overflow-x:auto"></div>
+    </div>
+
+    <div class="grid-2">
+        <div class="chart-card">
+            <div class="chart-header">
+                <div>
+                    <div class="ch-title">FII vs Retail Divergence <span class="htip-icon" data-tip="fii_div_chart">?</span></div>
+                    <div class="ch-sub" id="divDays">—</div>
+                </div>
+            </div>
+            <div class="chart-body">
+                <canvas id="divChart" height="200"></canvas>
+            </div>
+        </div>
+        <div class="data-card">
+            <div class="dc-header">
+                <div class="dc-title">Divergence Stats <span class="htip-icon" data-tip="div_stats">?</span></div>
+            </div>
+            <div class="metrics-grid" id="divStats"></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ══════════════════ CHI ══════════════════ -->
+<div class="panel" id="panel-chi">
+
+    <div class="data-card">
+        <div class="dc-header">
+            <div class="dc-title">Corporate Health Index <span class="htip-icon" data-tip="chi">?</span></div>
+            <div class="dc-count">Latest Quarter</div>
+        </div>
+        <div class="filter-bar">
+            <label>Search</label>
+            <input type="text" id="chiSearch" placeholder="Symbol...">
+            <label>Sort</label>
+            <select id="chiSort">
+                <option value="chi_desc">CHI &#8595; (Healthiest)</option>
+                <option value="chi_asc">CHI &#8593; (Weakest)</option>
+                <option value="delta_ps_desc">&#916; Promoter &#8595;</option>
+                <option value="net_buy_desc">Net Buy &#8595;</option>
+            </select>
+        </div>
+        <div id="chiFullTable" style="overflow-x:auto"></div>
+    </div>
+
+</div>
+
+<!-- ══════════════════ MACRO ══════════════════ -->
+<div class="panel" id="panel-macro">
+
+    <div class="data-card">
+        <div class="stat-strip stat-strip-3" id="macroCards"></div>
+        <div class="dc-header">
+            <div class="dc-title">Monthly Macro Composite <span class="htip-icon" data-tip="macro_composite">?</span></div>
+            <div class="dc-count">Last 24 months</div>
+        </div>
+        <div id="macroTable" style="overflow-x:auto"></div>
+    </div>
+
+    <div class="data-card">
+        <div class="dc-header">
+            <div class="dc-title">Sector IIP Momentum Rankings <span class="htip-icon" data-tip="sector_rankings">?</span></div>
+        </div>
+        <div id="sectorFullTable" style="overflow-x:auto"></div>
+    </div>
+
+</div>
+
+<!-- ══════════════════ INSIDER ══════════════════ -->
+<div class="panel" id="panel-insider">
+
+    <div class="data-card">
+        <div class="dc-header">
+            <div class="dc-title">Largest Insider Transactions <span class="htip-icon" data-tip="insider">?</span></div>
+            <div class="dc-count">Last 90 Days</div>
+        </div>
+        <div class="filter-bar">
+            <label>Type</label>
+            <select id="insiderType">
+                <option value="">All</option>
+                <option>Acquisition</option>
+                <option>Disposal</option>
+                <option>Pledge</option>
+                <option>Revoke</option>
+            </select>
+            <label>Category</label>
+            <select id="insiderCat">
+                <option value="">All</option>
+                <option>Promoter</option>
+                <option>Promoter &amp; Director</option>
+                <option>Promoter Group</option>
+                <option>Director</option>
+                <option>KMP</option>
+                <option>Designated Person</option>
+            </select>
+        </div>
+        <div id="insiderTable" style="overflow-x:auto"></div>
+    </div>
+
+</div>
+
+<!-- ══════════════════ MASTERSCORE ══════════════════ -->
+<div class="panel" id="panel-master">
+
+    <div class="data-card">
+        <div class="stat-strip" id="masterStats"></div>
+        <div class="dc-header">
+            <div class="dc-title">MasterScore — Composite Signal Ranking <span class="htip-icon" data-tip="masterscore">?</span></div>
+            <div class="dc-count" id="masterCount">—</div>
+        </div>
+        <div class="filter-bar">
+            <label>Search</label>
+            <input type="text" id="masterSearch" placeholder="Symbol...">
+            <label>Min Signals</label>
+            <select id="masterMinSig">
+                <option value="2">2+</option>
+                <option value="3">3+</option>
+                <option value="4">4+</option>
+            </select>
+            <label>View</label>
+            <select id="masterView">
+                <option value="top">Top Ranked</option>
+                <option value="bottom">Bottom Ranked</option>
+            </select>
+        </div>
+        <div id="masterTable" style="overflow-x:auto"></div>
+    </div>
+
+</div>
+
+<!-- ══════════════════ SUE ══════════════════ -->
+<div class="panel" id="panel-sue">
+
+    <div class="data-card">
+        <div class="stat-strip" id="sueStats"></div>
+        <div class="dc-header">
+            <div class="dc-title">Standardized Unexpected Earnings (SUE) <span class="htip-icon" data-tip="sue_title">?</span></div>
+            <div class="dc-count" id="sueCount">—</div>
+        </div>
+        <div class="filter-bar">
+            <label>Search</label>
+            <input type="text" id="sueSearch" placeholder="Symbol...">
+            <label>Sort</label>
+            <select id="sueSort">
+                <option value="sue_desc">SUE ↓ (Best Surprise)</option>
+                <option value="sue_asc">SUE ↑ (Worst Surprise)</option>
+                <option value="fm_desc">FM Score ↓</option>
+            </select>
+        </div>
+        <div id="sueTable" style="overflow-x:auto"></div>
+    </div>
+
+</div>
+
+<!-- ══════════════════ CONVICTION ══════════════════ -->
+<div class="panel" id="panel-conviction">
+
+    <div class="data-card">
+        <div class="stat-strip" id="convStats"></div>
+        <div class="dc-header">
+            <div class="dc-title">Conviction Score — Unified Composite <span class="htip-icon" data-tip="conv_title">?</span></div>
+            <div class="dc-count" id="convCount">—</div>
+        </div>
+        <div style="padding:8px 16px;font-size:11px;color:var(--fg3);font-family:'JetBrains Mono',monospace;line-height:1.5">
+            Robust rank-normal of every signal → 6 factor blocks → coverage shrinkage → agreement multiplier → interaction guards.
+            Blocks weighted EQUALLY for now (pending IC validation). Score is 0–100; 50 = median.
+        </div>
+        <div class="filter-bar">
+            <label>Search</label>
+            <input type="text" id="convSearch" placeholder="Symbol...">
+            <label>Min Blocks</label>
+            <select id="convMinBlocks">
+                <option value="2">2+ blocks</option>
+                <option value="3">3+ blocks</option>
+                <option value="4" selected>4+ blocks</option>
+                <option value="5">5 blocks (full)</option>
+            </select>
+            <label>View</label>
+            <select id="convView">
+                <option value="top">Highest Conviction</option>
+                <option value="bottom">Lowest Conviction</option>
+            </select>
+        </div>
+        <div id="convTable" style="overflow-x:auto"></div>
+    </div>
+
+</div>
+
+<!-- ══════════════════ MOMENTUM ══════════════════ -->
+<div class="panel" id="panel-momentum">
+
+    <div class="data-card">
+        <div class="stat-strip" id="momStats"></div>
+        <div class="dc-header">
+            <div class="dc-title">Price Momentum <span class="htip-icon" data-tip="mom_title">?</span></div>
+            <div class="dc-count" id="momCount">—</div>
+        </div>
+        <div id="momStaleNote" style="padding:8px 16px;font-size:11px;color:var(--amber,#d97706);font-family:'JetBrains Mono',monospace;"></div>
+        <div class="filter-bar">
+            <label>Search</label>
+            <input type="text" id="momSearch" placeholder="Symbol...">
+            <label>Sort</label>
+            <select id="momSort">
+                <option value="mom_desc">Momentum ↓ (Strongest)</option>
+                <option value="mom_asc">Momentum ↑ (Weakest)</option>
+                <option value="ret_desc">12-1 Return ↓</option>
+                <option value="hi_desc">Near 52w High ↓</option>
+            </select>
+        </div>
+        <div id="momTable" style="overflow-x:auto"></div>
+    </div>
+
+</div>
+
+<!-- ══════════════════ VALUE & QUALITY ══════════════════ -->
+<div class="panel" id="panel-value">
+
+    <div class="data-card">
+        <div class="stat-strip" id="vqStats"></div>
+        <div class="dc-header">
+            <div class="dc-title">Value &amp; Quality <span class="htip-icon" data-tip="vq_title">?</span></div>
+            <div class="dc-count" id="vqCount">—</div>
+        </div>
+        <div class="filter-bar">
+            <label>Search</label>
+            <input type="text" id="vqSearch" placeholder="Symbol...">
+            <label>Sort</label>
+            <select id="vqSort">
+                <option value="vq_desc">Combined ↓ (Best)</option>
+                <option value="value_desc">Value ↓ (Cheapest)</option>
+                <option value="quality_desc">Quality ↓ (Best run)</option>
+            </select>
+        </div>
+        <div id="vqTable" style="overflow-x:auto"></div>
+    </div>
+
+</div>
+
+<!-- ══════════════════ SMART MONEY ══════════════════ -->
+<div class="panel" id="panel-smart">
+
+    <div class="data-card">
+        <div class="stat-strip" id="smStats"></div>
+        <div class="dc-header">
+            <div class="dc-title">Smart-Money Flow — Bulk &amp; Block Deals <span class="htip-icon" data-tip="sm_title">?</span></div>
+            <div class="dc-count" id="smCount">—</div>
+        </div>
+        <div class="filter-bar">
+            <label>Search</label>
+            <input type="text" id="smSearch" placeholder="Symbol...">
+            <label>Sort</label>
+            <select id="smSort">
+                <option value="net_desc">Net Buy ↓ (Accumulation)</option>
+                <option value="net_asc">Net Sell ↓ (Distribution)</option>
+            </select>
+        </div>
+        <div id="smTable" style="overflow-x:auto"></div>
+    </div>
+
+    <div class="data-card">
+        <div class="dc-header">
+            <div class="dc-title">Recent Large Deals <span class="htip-icon" data-tip="sm_deals">?</span></div>
+            <div class="dc-count" id="smDealsCount">—</div>
+        </div>
+        <div id="smDealsTable" style="overflow-x:auto"></div>
+    </div>
+
+</div>
+
+<!-- ══════════════════ EARNINGS ══════════════════ -->
+<div class="panel" id="panel-earnings">
+
+    <div class="data-card">
+        <div class="dc-header">
+            <div class="dc-title">Recent Earnings Dates</div>
+            <div class="dc-count">Board Meetings</div>
+        </div>
+        <div id="earningsTable" style="overflow-x:auto"></div>
+    </div>
+
+</div>
+
+</div><!-- .main -->
+</div><!-- .app -->
+<div id="tooltip"></div>
+
+<script>
+const BASE = 'data/export/';
+let DATA = {};
+
+async function loadAll() {
+    const files = ['fo_latest','participant_divergence','chi_latest','macro_monthly',
+                   'sector_momentum','insider_recent','upcoming_earnings','db_stats',
+                   'master_score','sue_signal','momentum_signal','value_quality_signal',
+                   'smart_money_signal','smart_money_deals','conviction_score'];
+    await Promise.all(files.map(f =>
+        fetch(BASE + f + '.json').then(r => r.json()).then(d => DATA[f] = d).catch(() => DATA[f] = [])
+    ));
+    render();
+}
+
+// ─── Helpers ───
+const fmt = (n, d=2) => n == null ? '—' : Number(n).toFixed(d);
+const fmtPct = (n, d=1) => n == null ? '—' : (Number(n)*100).toFixed(d) + '%';
+const fmtCr = (n) => n == null ? '—' : '₹' + (Number(n)/1e7).toFixed(1) + 'cr';
+const clsVal = (n) => n > 0 ? 'up' : n < 0 ? 'dn' : '';
+
+// ─── Tooltip system ───
+const TIPS = {
+    // Hero
+    macro_zscore: "Z-score of India’s macro momentum — combines GST collections, IIP industrial output, and credit growth. Positive = economy expanding faster than recent trend.",
+    fii_div: "Gap between FII and retail positioning in F&O derivatives. Positive = FII more bullish than retail. Smart money vs. crowd sentiment indicator.",
+    fo_regime: "% of F&O stocks in ‘long buildup’ (price↑ + OI↑). Higher = more broad-based bullish positioning across the derivatives market.",
+    master_top: "Highest-ranked stock in the MasterScore composite — equal-weight z-score average across all available signals.",
+
+    // Overview cards
+    sector_iip: "Industrial production growth by sector from IIP data. Identifies which parts of the economy are accelerating or contracting — useful for sector rotation.",
+    macro_chart: "12-month trailing z-score of the macro composite (GST + IIP + credit). Crossing above 0 = expansion accelerating, below 0 = decelerating.",
+    fo_bullish_top: "Top 20 F&O stocks by composite bullish score. These have the strongest bullish derivatives positioning today.",
+    chi_strongest: "Top 15 stocks by Corporate Health Index — strongest promoter commitment, most insider buying, least share pledging.",
+
+    // F&O panel
+    fo_signals: "Per-stock F&O signal combining OI regime (price×OI direction), put-call ratio vs. history, and OI momentum into one composite bullish score.",
+    fii_div_chart: "Time series of the FII minus retail positioning gap. Large divergences (FII much more bullish or bearish than retail) historically precede mean reversion.",
+    div_stats: "Summary stats of FII vs. retail positioning. FII Bias and Retail Bias show each group’s net long/short tilt in index derivatives.",
+    regime: "OI regime from price + OI direction. Long buildup: price↑ OI↑ (fresh longs). Short buildup: price↓ OI↑ (fresh shorts). Short covering: price↑ OI↓. Long unwinding: price↓ OI↓.",
+    oi: "Total outstanding derivative contracts (futures + options) for this stock.",
+    oi_delta: "Day-over-day OI change. Rising = new money entering; falling = positions closing out.",
+    pcr: "Put-Call Ratio by open interest. PCR > 1 = more puts (contrarian bullish). PCR < 0.5 = call-heavy (potential complacency).",
+    pcr_z: "PCR z-score vs. its own 20-day rolling average. High = unusually put-heavy for this stock relative to recent history.",
+    oi_mom: "Rate of change of open interest over recent sessions — captures acceleration of positioning.",
+    fo_bullish: "Composite score: OI regime + PCR z-score + OI momentum. Higher = more bullish F&O positioning.",
+
+    // CHI panel
+    chi: "Composite score (0–1) from promoter holding stability, net insider buying, and low share pledging. Higher = healthier corporate governance.",
+    promo_pct: "Promoter shareholding %. High promoter holding (60%+) signals strong insider alignment with minority shareholders.",
+    delta_promo: "QoQ change in promoter holding. Rising = promoters increasing stake (bullish). Falling = potential dilution or exit.",
+    net_buy: "Net insider buying minus selling value in recent quarter. Positive = insiders are net buyers of their own stock.",
+    pledge: "Net pledged shares by promoters. High pledging = risk of forced selling if stock price drops.",
+
+    // Macro panel
+    macro_composite: "Equal-weight average of GST, IIP, and credit growth. Smooths noise from individual indicators into one macro momentum reading.",
+    gst_yoy: "Year-over-year growth in national GST collections — one of the best real-time proxies for economic activity in India.",
+    iip_yoy: "Index of Industrial Production YoY. Measures manufacturing and mining output growth.",
+    credit_yoy: "Year-over-year growth in bank credit. Rising credit = expanding economic investment and consumption.",
+    macro_z: "How current macro composite compares to trailing 12-month distribution. Positive = economy accelerating; negative = decelerating.",
+    sector_rankings: "Sectors ranked by IIP growth rate. Use for identifying sector rotation opportunities — overweight accelerating sectors.",
+
+    // MasterScore
+    masterscore: "Cross-sectional z-score of each signal, then equal-weight average + small macro tilt. Minimum 2 signals required for a meaningful composite.",
+    ms_total: "Stocks scored by 2+ of the 5 signals. Single-signal stocks are excluded to avoid unreliable extremes.",
+    ms_coverage: "Stocks covered by 4+ signals. Higher coverage = more reliable composite ranking.",
+    ms_top: "Highest composite z-score. MasterScore = mean(signal z-scores) + 0.1 × macro z-score.",
+    ms_signals: "The components: CADP (pre-earnings delivery), F&O (derivatives positioning), CHI (corporate health), SUE (earnings surprise), Momentum (price), Value+Quality (fundamentals), plus a small Macro economic tilt.",
+    ms_score: "Equal-weight average of available signal z-scores, plus a small macro regime tilt (±0.1 × macro z).",
+    ms_pctile: "Percentile rank. 100% = top-ranked, 50% = median.",
+    z_cadp: "Z-score of Cumulative Abnormal Delivery %. Elevated delivery before earnings suggests institutional conviction.",
+    z_fo: "Z-score of F&O bullish composite — OI regime + PCR + OI momentum.",
+    z_chi: "Z-score of Corporate Health Index — promoter holding + insider buying + low pledging.",
+    z_sue: "Z-score of Standardized Unexpected Earnings. Positive = EPS beat vs. same quarter last year.",
+    n_signals: "Signals available for this stock (out of 5). More signals = more reliable composite.",
+
+    // SUE
+    sue_title: "SUE = (EPS_q − EPS_{q−4}) / σ(sequential EPS changes). Measures earnings surprise relative to the stock’s own EPS volatility over 8 quarters.",
+    sue_ranked: "Companies with 8+ quarters of EPS history — the minimum needed to compute a meaningful SUE denominator.",
+    pos_surprise: "Stocks where latest quarter EPS exceeded same quarter last year (positive YoY surprise).",
+    neg_surprise: "Stocks where latest quarter EPS fell below same quarter last year.",
+    top_sue: "Highest SUE score — largest positive earnings surprise relative to historical volatility.",
+    sue: "Standardized Unexpected Earnings: (current qtr EPS − same qtr last year) ÷ std of sequential EPS changes over 8 quarters.",
+    sue_pctile: "Percentile rank. 100% = strongest positive surprise.",
+    eps_now: "Most recent quarterly EPS from screener.in.",
+    eps_y1: "EPS from the same quarter one year ago — the YoY comparator used in SUE.",
+    fm: "Fundamental Momentum (Novy-Marx proxy): avg EPS last 4 qtrs minus avg EPS prev 4 qtrs. Captures EPS trend direction.",
+    qtrs: "Number of quarterly EPS data points available for this stock.",
+
+    // Momentum
+    mom_title: "Price momentum — the most validated cross-sectional factor (Jegadeesh-Titman). Combines trailing 12-1 return and 52-week-high proximity into one z-score.",
+    mom_ranked: "Liquid stocks (avg ₹1cr+/day turnover) with a full year of price history — the minimum needed to compute 12-1 momentum.",
+    mom_above200: "Share of ranked stocks trading above their 200-day moving average — a market-wide trend-health gauge.",
+    top_mom: "Highest composite momentum score: 0.6·z(12-1 return) + 0.4·z(52w-high proximity).",
+    mom_score: "Composite momentum z-score: 0.6·z(12-1 return) + 0.4·z(distance to 52-week high), winsorized at ±3σ.",
+    mom_pctile: "Percentile rank of momentum across the liquid universe. 100% = strongest.",
+    ret_12_1: "Return from 12 months ago to 1 month ago. The recent month is skipped on purpose — short-term returns mean-revert and would otherwise contaminate the signal.",
+    ret_6_1: "Return from 6 months ago to 1 month ago — a faster momentum variant for corroboration.",
+    pct_52w_high: "Current price as a % of the trailing 52-week high. Closer to 100% = stronger (George-Hwang anchoring effect).",
+    above200: "Whether price is above its 200-day moving average — simple trend regime filter.",
+    z_mom: "Z-score of price momentum (12-1 return + 52w-high proximity). The only price-based component of MasterScore.",
+
+    // Value & Quality
+    vq_title: "Two fundamental factors from screener.in data. Value = cheapness (earnings yield, book/price, dividend yield). Quality = profitability + low leverage + improving margins. Combined 50/50.",
+    vq_universe: "Stocks with enough fundamental data (P/E, book value, ROE/ROCE) to score.",
+    top_value: "Cheapest stock by the value composite — high earnings yield, high book-to-price, high dividend yield.",
+    top_quality: "Highest-quality stock — best blend of ROE, ROCE, low debt, and margin expansion.",
+    top_vq: "Best combined value + quality score. The 'cheap AND well-run' sweet spot.",
+    vq_score: "50/50 blend of the value and quality z-scores. Feeds MasterScore as the fundamental-value component.",
+    value_score: "Average z-score of earnings yield (1/PE), book-to-price (1/PB), and dividend yield. Higher = cheaper.",
+    quality_score: "Average z-score of ROE, ROCE, low debt-to-equity, margin trend, and profit consistency. Higher = better business.",
+    pe_vq: "Price-to-earnings ratio. Lower = cheaper (but check it's not a value trap).",
+    roe_vq: "Return on equity — profit generated per rupee of shareholder capital.",
+    roce_vq: "Return on capital employed — profitability across all capital (debt + equity). Less distorted by leverage than ROE.",
+    de_vq: "Debt-to-equity = borrowings ÷ (equity capital + reserves), from the latest balance sheet. Lower = safer.",
+    opm_trend: "Operating-margin trend: avg OPM last 4 quarters minus avg OPM prior 4 quarters. Positive = margins expanding.",
+    z_vq: "Z-score of the combined value + quality composite within MasterScore.",
+
+    // Smart Money
+    sm_title: "Bulk deals (>0.5% of equity in a day) and block deals (large negotiated trades) are SEBI same-day disclosures naming the counterparty — the cleanest public read on large-investor conviction.",
+    sm_symbols: "Stocks with at least one bulk or block deal in the trailing window.",
+    sm_netbuy: "Stocks where disclosed buying value exceeded selling value (net accumulation).",
+    sm_netsell: "Stocks where disclosed selling exceeded buying (net distribution).",
+    sm_window: "Date range of bulk/block deals currently ingested. This panel deepens as more days are collected.",
+    sm_net: "Net value = total disclosed buy value − total disclosed sell value (₹ crore) over the window.",
+    sm_bought: "Total disclosed bulk/block BUY value (₹ crore).",
+    sm_sold: "Total disclosed bulk/block SELL value (₹ crore).",
+    sm_buyers: "Number of distinct named buyers — more unique buyers = broader accumulation interest.",
+    sm_repeat: "‘Repeat’ flag: the same client bought on 2+ separate days — sticky conviction rather than a one-off rebalance.",
+    sm_deals: "Individual disclosed bulk/block deals, largest first. Counterparty names are SEBI-mandated disclosures.",
+
+    // Conviction
+    conv_hero: "Top stock by the unified Conviction Score — the smart composite that fuses all signals into one 0–100 number.",
+    conv_title: "The unified composite. Each signal is converted to a robust rank-normal score, collapsed into 6 factor blocks (Earnings, Value, Quality, Momentum, Flow + a macro tilt), then combined with coverage shrinkage (thin evidence damped), an agreement multiplier (consensus rewarded, conflict penalised), and value×quality / momentum×quality interaction guards. Output 0–100.",
+    conv_scored: "Stocks scored by at least 2 factor blocks. Single-block stocks are excluded as unreliable.",
+    conv_full: "Stocks covered by 4+ of the 5 differentiating blocks — the most trustworthy scores.",
+    conv_strong: "Stocks scoring 80+/100 — strong, broadly-confirmed conviction across multiple factor themes.",
+    conv_top: "Highest Conviction Score in the universe right now.",
+    conv_score: "Unified 0–100 conviction. 50 = median stock. Built from robust ranks, factor blocks, coverage shrinkage, sign-agreement, and interaction guards. Weights equal pending IC validation.",
+    conv_nblocks: "How many of the 5 factor blocks (Earnings, Value, Quality, Momentum, Flow) have data for this stock. More = more reliable.",
+    conv_agree: "Share of present blocks pointing the same direction as the overall score. High agreement = broad confirmation; low = the signals disagree.",
+    b_earnings: "Earnings block: robust-rank composite of SUE (earnings surprise) and FM (fundamental momentum).",
+    b_value: "Value block: robust rank of the value composite (earnings yield, book-to-price, dividend yield).",
+    b_quality: "Quality block: robust rank of ROE, ROCE, low leverage, margin trend, profit consistency.",
+    b_momentum: "Momentum block: robust rank of price momentum (12-1 return + 52w-high proximity).",
+    b_flow: "Flow block: robust-rank composite of F&O positioning, pre-earnings delivery (CADP), corporate health (CHI), and smart-money bulk/block buying.",
+
+    // Insider
+    insider: "SEBI-mandated insider trading disclosures — promoters, directors, and KMPs must report all trades within 2 days. Large insider buying is a bullish signal.",
+
+    // Divergence stats
+    div_latest: "Current FII minus retail positioning gap. Large divergences historically precede mean reversion.",
+    div_mean: "Average divergence over the lookback period — baseline to judge if current divergence is extreme.",
+    fii_bias: "Net long/short tilt of Foreign Institutional Investors in index derivatives.",
+    retail_bias: "Net long/short tilt of retail traders (client category) in index derivatives."
+};
+
+function tip(key) {
+    if (!TIPS[key]) return '';
+    return ` <span class="htip-icon" data-tip="${key}">?</span>`;
+}
+
+// Global tooltip positioning
+(function() {
+    const tt = document.getElementById('tooltip');
+    document.addEventListener('mouseover', e => {
+        const icon = e.target.closest('.htip-icon');
+        if (!icon) return;
+        const key = icon.dataset.tip;
+        const text = TIPS[key];
+        if (!text) return;
+        tt.textContent = text;
+        tt.style.display = 'block';
+        const r = icon.getBoundingClientRect();
+        let left = r.left - 12;
+        if (left + 300 > window.innerWidth) left = window.innerWidth - 308;
+        if (left < 8) left = 8;
+        tt.style.left = left + 'px';
+        tt.style.top = (r.bottom + 8) + 'px';
+        const arrowLeft = Math.max(12, Math.min(r.left - left + 3, 280));
+        tt.style.setProperty('--arrow-left', arrowLeft + 'px');
+    });
+    document.addEventListener('mouseout', e => {
+        if (e.target.closest('.htip-icon')) tt.style.display = 'none';
+    });
+})();
+
+function regimePill(r) {
+    if (!r) return '—';
+    const m = {long_buildup:'up',short_buildup:'dn',short_covering:'gold',long_unwinding:'amber'};
+    return `<span class="pill pill-${m[r]||'neu'}">${r.replace('_',' ')}</span>`;
+}
+
+function makeTable(headers, rows) {
+    let h = '<table class="pos-table"><thead><tr>';
+    headers.forEach(col => {
+        const t = col.tip ? tip(col.tip) : '';
+        h += `<th${col.align==='r'?' class="r"':''}>${col.label}${t}</th>`;
+    });
+    h += '</tr></thead><tbody>';
+    rows.forEach(r => { h += '<tr>' + r + '</tr>'; });
+    h += '</tbody></table>';
+    return h;
+}
+
+// ─── Chart ───
+let macroChartInstance = null;
+let divChartInstance = null;
+
+function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
+
+function makeLineChart(canvasId, labels, datasets, existingChart) {
+    if (existingChart) existingChart.destroy();
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    const gridColor = isDark() ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+    const tickColor = isDark() ? '#6b7280' : '#9ca3af';
+    return new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: { legend: { display: false }, tooltip: { titleFont: { family: 'JetBrains Mono' }, bodyFont: { family: 'JetBrains Mono' } } },
+            scales: {
+                x: { grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 10, family: 'JetBrains Mono' }, maxTicksLimit: 8 } },
+                y: { grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 10, family: 'JetBrains Mono' } } }
+            },
+            elements: { point: { radius: 0, hoverRadius: 4 }, line: { tension: 0.3 } }
+        }
+    });
+}
+
+// ─── Render ───
+function render() {
+    const stats = DATA.db_stats?.[0] || {};
+    document.getElementById('headerMeta').textContent =
+        `${(stats.equity_symbols||0).toLocaleString()} symbols · ${(stats.fo_symbols||0).toLocaleString()} F&O · Last: ${stats.latest_equity_date || '—'}`;
+
+    renderHero();
+    renderOverview();
+    renderConviction();
+    renderMaster();
+    renderMomentum();
+    renderValueQuality();
+    renderSmartMoney();
+    renderSUE();
+    renderFO();
+    renderCHI();
+    renderMacro();
+    renderInsider();
+    renderEarnings();
+}
+
+function renderHero() {
+    const macro = DATA.macro_monthly || [];
+    const latest = macro.filter(m => m.momentum_zscore != null).slice(-1)[0] || {};
+    const div = DATA.participant_divergence || [];
+    const latestDiv = div.slice(-1)[0] || {};
+    const fo = DATA.fo_latest || [];
+    const chi = DATA.chi_latest || [];
+
+    const regimes = {};
+    fo.forEach(f => { regimes[f.oi_regime] = (regimes[f.oi_regime]||0) + 1; });
+    const bullPct = fo.length ? ((regimes.long_buildup||0) / fo.length * 100).toFixed(0) : '0';
+    const ms = (DATA.master_score || []).filter(m => m.master_score_tilted != null);
+    const chiHealthy = chi.filter(c => c.chi > 0.7).length;
+    const chiStress = chi.filter(c => c.chi < 0.2).length;
+
+    const z = latest.momentum_zscore;
+    document.getElementById('heroZscore').textContent = fmt(z, 2);
+    document.getElementById('heroZscore').className = 'nb-main ' + clsVal(z);
+    document.getElementById('heroZscoreDate').textContent = latest.month || '—';
+
+    const d = latestDiv.divergence;
+    document.getElementById('heroDiv').textContent = (d > 0 ? '+' : '') + fmt(d, 4);
+    document.getElementById('heroDiv').className = 'nb-main ' + clsVal(d);
+    document.getElementById('heroDivSub').textContent = `${latestDiv.trade_date || '—'} · ${d > 0 ? 'FII > Retail' : 'Retail > FII'}`;
+
+    document.getElementById('heroRegime').textContent = bullPct + '%';
+    document.getElementById('heroRegime').className = 'nb-main gold';
+    document.getElementById('heroRegimeSub').textContent = `long buildup (${regimes.long_buildup||0} of ${fo.length})`;
+
+    const cs = (DATA.conviction_score || []).filter(c => c.final_score != null);
+    // Headline should be a TRUSTWORTHY name: top among 4+ block coverage, not a thin 2-block extreme.
+    const reliable = cs.filter(c => c.n_blocks >= 4);
+    const topC = (reliable.length ? reliable : cs)[0] || {};
+    document.getElementById('heroMaster').textContent = topC.symbol || '—';
+    document.getElementById('heroMaster').className = 'nb-main gold';
+    document.getElementById('heroMasterSub').textContent = cs.length ? `conviction ${fmt(topC.conviction,0)}/100 · ${topC.n_blocks||0} blocks · ${cs.length} scored` : '—';
+}
+
+function renderOverview() {
+    const sectors = DATA.sector_momentum || [];
+    const sectorRows = sectors.map(s => {
+        const pct = (s.iip_yoy * 100).toFixed(1);
+        const barW = Math.min(Math.abs(s.iip_yoy) * 500, 100);
+        const barCls = s.iip_yoy >= 0 ? 'bar-up' : 'bar-dn';
+        return `<td>${s.sector}</td><td class="r">${pct}%</td>
+                <td style="width:120px"><div class="bar-wrap"><div class="bar-fill ${barCls}" style="width:${barW}%"></div></div></td>`;
+    });
+    document.getElementById('sectorTable').innerHTML = makeTable(
+        [{label:'Sector'},{label:'IIP YoY',align:'r'},{label:''}], sectorRows
+    );
+
+    // Macro z-score chart
+    const macro = (DATA.macro_monthly || []).filter(m => m.momentum_zscore != null);
+    const labels = macro.map(m => m.month.substring(0,7));
+    const vals = macro.map(m => m.momentum_zscore);
+    const goldC = isDark() ? '#4f8ff7' : '#2563eb';
+    macroChartInstance = makeLineChart('macroChart', labels, [{
+        data: vals, borderColor: goldC, backgroundColor: goldC + '18', fill: true, borderWidth: 2
+    }], macroChartInstance);
+
+    // F&O top 20 bullish
+    const fo = (DATA.fo_latest || []).slice(0, 20);
+    const foRows = fo.map(f =>
+        `<td class="script-name">${f.symbol}</td><td class="r">${fmt(f.close,1)}</td><td>${regimePill(f.oi_regime)}</td>
+         <td class="r">${fmt(f.pcr_oi,2)}</td><td class="r">${fmt(f.oi_momentum,3)}</td>
+         <td class="r ${clsVal(f.fo_bullish_raw)}" style="font-weight:600">${fmt(f.fo_bullish_raw,3)}</td>`
+    );
+    document.getElementById('foBullishTable').innerHTML = makeTable(
+        [{label:'Symbol'},{label:'Close',align:'r'},{label:'Regime',tip:'regime'},{label:'PCR',align:'r',tip:'pcr'},
+         {label:'OI Mom',align:'r',tip:'oi_mom'},{label:'Bullish',align:'r',tip:'fo_bullish'}], foRows
+    );
+
+    // CHI top
+    const chi = (DATA.chi_latest || []).slice(0, 15);
+    const chiRows = chi.map(c =>
+        `<td class="script-name">${c.symbol}</td><td class="r" style="font-weight:600">${fmt(c.chi,3)}</td>
+         <td class="r ${clsVal(c.delta_ps)}">${c.delta_ps > 0 ? '+':''}${fmt(c.delta_ps,2)}%</td>
+         <td class="r">${c.net_buy_value ? fmtCr(c.net_buy_value) : '—'}</td>
+         <td class="r">${fmt(c.pledge_net,0)}</td>`
+    );
+    document.getElementById('chiTopTable').innerHTML = makeTable(
+        [{label:'Symbol'},{label:'CHI',align:'r',tip:'chi'},{label:'Δ Promoter',align:'r',tip:'delta_promo'},
+         {label:'Net Buy',align:'r',tip:'net_buy'},{label:'Pledge Net',align:'r',tip:'pledge'}], chiRows
+    );
+}
+
+function signalBar(val, maxAbs) {
+    if (val == null) return '<span style="color:var(--fg3)">—</span>';
+    const w = Math.min(Math.abs(val) / maxAbs * 100, 100);
+    const cls = val >= 0 ? 'bar-up' : 'bar-dn';
+    return `<div class="bar-wrap" style="width:80px;display:inline-block"><div class="bar-fill ${cls}" style="width:${w}%"></div></div>`;
+}
+
+function signalPill(val, label) {
+    if (val == null) return '<span class="pill pill-neu">—</span>';
+    const cls = val > 0 ? 'pill-up' : val < 0 ? 'pill-dn' : 'pill-neu';
+    return `<span class="pill ${cls}">${label || fmt(val,2)}</span>`;
+}
+
+function renderMaster() {
+    const ms = DATA.master_score || [];
+    const scored = ms.filter(m => m.master_score_tilted != null);
+    const sig4 = scored.filter(m => m.n_signals >= 4);
+
+    document.getElementById('masterStats').innerHTML = `
+        <div class="sstat">
+            <div class="sstat-label">Total Ranked${tip('ms_total')}</div>
+            <div class="sstat-val">${scored.length}</div>
+            <div class="sstat-sub">with 2+ signals</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Full Coverage${tip('ms_coverage')}</div>
+            <div class="sstat-val">${sig4.length}</div>
+            <div class="sstat-sub">4+ signals</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Top Score${tip('ms_top')}</div>
+            <div class="sstat-val up">${scored.length ? fmt(scored[0].master_score_tilted,2) : '—'}</div>
+            <div class="sstat-sub">${scored.length ? scored[0].symbol : '—'}</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Signals Available${tip('ms_signals')}</div>
+            <div class="sstat-val gold">7</div>
+            <div class="sstat-sub">CADP · F&O · CHI · SUE · Mom · V+Q</div>
+        </div>
+    `;
+
+    function renderTable() {
+        const search = document.getElementById('masterSearch').value.toUpperCase();
+        const minSig = parseInt(document.getElementById('masterMinSig').value);
+        const view = document.getElementById('masterView').value;
+
+        let filtered = scored.filter(m => {
+            if (search && !m.symbol.includes(search)) return false;
+            if (m.n_signals < minSig) return false;
+            return true;
+        });
+
+        if (view === 'bottom') filtered = filtered.slice().reverse();
+        document.getElementById('masterCount').textContent = filtered.length + ' stocks';
+
+        const rows = filtered.slice(0, 100).map((m, i) => {
+            const rank = view === 'bottom' ? filtered.length - i : i + 1;
+            const rankPct = m.master_rank != null ? (m.master_rank * 100).toFixed(0) + '%' : '—';
+            return `<td class="mono" style="color:var(--fg3)">${rank}</td>
+                <td class="script-name">${m.symbol}</td>
+                <td class="r ${clsVal(m.master_score_tilted)}" style="font-weight:700;font-family:'JetBrains Mono',monospace">${fmt(m.master_score_tilted,3)}</td>
+                <td class="r mono">${rankPct}</td>
+                <td class="r">${signalPill(m.z_cadp)}</td>
+                <td class="r">${signalPill(m.z_fo)}</td>
+                <td class="r">${signalPill(m.z_chi)}</td>
+                <td class="r">${signalPill(m.z_sue)}</td>
+                <td class="r">${signalPill(m.z_mom)}</td>
+                <td class="r">${signalPill(m.z_vq)}</td>
+                <td class="r mono">${m.n_signals}</td>`;
+        });
+        document.getElementById('masterTable').innerHTML = makeTable(
+            [{label:'#'},{label:'Symbol'},{label:'Score',align:'r',tip:'ms_score'},{label:'%ile',align:'r',tip:'ms_pctile'},
+             {label:'CADP',align:'r',tip:'z_cadp'},{label:'F&O',align:'r',tip:'z_fo'},{label:'CHI',align:'r',tip:'z_chi'},
+             {label:'SUE',align:'r',tip:'z_sue'},{label:'Mom',align:'r',tip:'z_mom'},{label:'V+Q',align:'r',tip:'z_vq'},
+             {label:'Sig',align:'r',tip:'n_signals'}], rows
+        );
+    }
+
+    document.getElementById('masterSearch').addEventListener('input', renderTable);
+    document.getElementById('masterMinSig').addEventListener('change', renderTable);
+    document.getElementById('masterView').addEventListener('change', renderTable);
+    renderTable();
+}
+
+function renderSUE() {
+    const sue = DATA.sue_signal || [];
+    const positive = sue.filter(s => s.sue > 0);
+    const negative = sue.filter(s => s.sue < 0);
+
+    document.getElementById('sueStats').innerHTML = `
+        <div class="sstat">
+            <div class="sstat-label">Stocks Ranked${tip('sue_ranked')}</div>
+            <div class="sstat-val">${sue.length}</div>
+            <div class="sstat-sub">8+ quarters EPS history</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Positive Surprise${tip('pos_surprise')}</div>
+            <div class="sstat-val up">${positive.length}</div>
+            <div class="sstat-sub">${sue.length ? ((positive.length/sue.length)*100).toFixed(0) : 0}% of universe</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Negative Surprise${tip('neg_surprise')}</div>
+            <div class="sstat-val dn">${negative.length}</div>
+            <div class="sstat-sub">${sue.length ? ((negative.length/sue.length)*100).toFixed(0) : 0}% of universe</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Top SUE${tip('top_sue')}</div>
+            <div class="sstat-val up">${sue.length ? fmt(sue[0].sue,2) : '—'}</div>
+            <div class="sstat-sub">${sue.length ? sue[0].symbol : '—'}</div>
+        </div>
+    `;
+
+    function renderTable() {
+        const search = document.getElementById('sueSearch').value.toUpperCase();
+        const sort = document.getElementById('sueSort').value;
+
+        let filtered = sue.filter(s => !search || s.symbol.includes(search));
+
+        if (sort === 'sue_asc') filtered = filtered.slice().sort((a,b) => a.sue - b.sue);
+        else if (sort === 'fm_desc') filtered = filtered.slice().sort((a,b) => (b.fm_score||0) - (a.fm_score||0));
+
+        document.getElementById('sueCount').textContent = filtered.length + ' stocks';
+
+        const maxSue = Math.max(...sue.map(s => Math.abs(s.sue)), 1);
+        const rows = filtered.slice(0, 100).map((s, i) => {
+            const rankPct = s.sue_rank != null ? (s.sue_rank * 100).toFixed(0) + '%' : '—';
+            const barW = Math.min(Math.abs(s.sue) / maxSue * 100, 100);
+            const barCls = s.sue >= 0 ? 'bar-up' : 'bar-dn';
+            return `<td class="mono" style="color:var(--fg3)">${i+1}</td>
+                <td class="script-name">${s.symbol}</td>
+                <td class="r ${clsVal(s.sue)}" style="font-weight:700;font-family:'JetBrains Mono',monospace">${fmt(s.sue,3)}</td>
+                <td class="r mono">${rankPct}</td>
+                <td class="r mono">${fmt(s.eps_latest,2)}</td>
+                <td class="r mono">${fmt(s.eps_yoy_ago,2)}</td>
+                <td class="r ${clsVal(s.fm_score)}" style="font-family:'JetBrains Mono',monospace">${fmt(s.fm_score,2)}</td>
+                <td style="width:100px"><div class="bar-wrap"><div class="bar-fill ${barCls}" style="width:${barW}%"></div></div></td>
+                <td class="r mono">${s.n_quarters || '—'}</td>`;
+        });
+        document.getElementById('sueTable').innerHTML = makeTable(
+            [{label:'#'},{label:'Symbol'},{label:'SUE',align:'r',tip:'sue'},{label:'%ile',align:'r',tip:'sue_pctile'},
+             {label:'EPS Now',align:'r',tip:'eps_now'},{label:'EPS Y-1',align:'r',tip:'eps_y1'},{label:'FM',align:'r',tip:'fm'},
+             {label:''},{label:'Qtrs',align:'r',tip:'qtrs'}], rows
+        );
+    }
+
+    document.getElementById('sueSearch').addEventListener('input', renderTable);
+    document.getElementById('sueSort').addEventListener('change', renderTable);
+    renderTable();
+}
+
+function renderConviction() {
+    const cs = (DATA.conviction_score || []).filter(c => c.final_score != null);
+    const full = cs.filter(c => c.n_blocks >= 4);
+    const strong = cs.filter(c => c.conviction >= 80);
+    const topReliable = (full.length ? full : cs)[0] || {};   // trustworthy headline pick
+
+    document.getElementById('convStats').innerHTML = `
+        <div class="sstat">
+            <div class="sstat-label">Stocks Scored${tip('conv_scored')}</div>
+            <div class="sstat-val">${cs.length}</div>
+            <div class="sstat-sub">2+ factor blocks</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Full Coverage${tip('conv_full')}</div>
+            <div class="sstat-val">${full.length}</div>
+            <div class="sstat-sub">4+ blocks</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">High Conviction${tip('conv_strong')}</div>
+            <div class="sstat-val up">${strong.length}</div>
+            <div class="sstat-sub">score ≥ 80/100</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Top Pick${tip('conv_top')}</div>
+            <div class="sstat-val up">${full.length || cs.length ? fmt(topReliable.conviction,0) : '—'}</div>
+            <div class="sstat-sub">${topReliable.symbol || '—'} · ${topReliable.n_blocks||0} blocks</div>
+        </div>
+    `;
+
+    function blockCell(v) {
+        if (v == null || isNaN(v)) return '<td class="r mono" style="color:var(--fg3)">·</td>';
+        const cls = v > 0.4 ? 'up' : v < -0.4 ? 'dn' : '';
+        return `<td class="r ${cls} mono">${fmt(v,2)}</td>`;
+    }
+
+    function renderTable() {
+        const search = document.getElementById('convSearch').value.toUpperCase();
+        const minB = parseInt(document.getElementById('convMinBlocks').value);
+        const view = document.getElementById('convView').value;
+        let f = cs.filter(c => (!search || c.symbol.includes(search)) && c.n_blocks >= minB);
+        if (view === 'bottom') f = f.slice().reverse();
+        document.getElementById('convCount').textContent = f.length + ' stocks';
+
+        const rows = f.slice(0,100).map((c,i)=>{
+            const rank = view === 'bottom' ? f.length - i : i + 1;
+            const barW = c.conviction;
+            const barCls = c.conviction >= 50 ? 'bar-up' : 'bar-dn';
+            const agr = (c.agreement*100).toFixed(0)+'%';
+            return `<td class="mono" style="color:var(--fg3)">${rank}</td>
+                <td class="script-name">${c.symbol}</td>
+                <td class="r" style="font-weight:700;font-family:'JetBrains Mono',monospace;color:${c.conviction>=50?'var(--up)':'var(--dn)'}">${fmt(c.conviction,1)}</td>
+                <td style="width:90px"><div class="bar-wrap"><div class="bar-fill ${barCls}" style="width:${barW}%"></div></div></td>
+                ${blockCell(c.b_earnings)}${blockCell(c.b_value)}${blockCell(c.b_quality)}${blockCell(c.b_momentum)}${blockCell(c.b_flow)}
+                <td class="r mono">${c.n_blocks}</td>
+                <td class="r mono">${agr}</td>`;
+        });
+        document.getElementById('convTable').innerHTML = makeTable(
+            [{label:'#'},{label:'Symbol'},{label:'Conviction',align:'r',tip:'conv_score'},{label:''},
+             {label:'Earn',align:'r',tip:'b_earnings'},{label:'Value',align:'r',tip:'b_value'},
+             {label:'Qual',align:'r',tip:'b_quality'},{label:'Mom',align:'r',tip:'b_momentum'},{label:'Flow',align:'r',tip:'b_flow'},
+             {label:'Blk',align:'r',tip:'conv_nblocks'},{label:'Agree',align:'r',tip:'conv_agree'}], rows
+        );
+    }
+    document.getElementById('convSearch').addEventListener('input', renderTable);
+    document.getElementById('convMinBlocks').addEventListener('change', renderTable);
+    document.getElementById('convView').addEventListener('change', renderTable);
+    renderTable();
+}
+
+function renderMomentum() {
+    const mom = DATA.momentum_signal || [];
+    const above = mom.filter(m => m.above_200dma).length;
+    const asOf = mom.length ? mom[0].as_of : null;
+
+    document.getElementById('momStats').innerHTML = `
+        <div class="sstat">
+            <div class="sstat-label">Stocks Ranked${tip('mom_ranked')}</div>
+            <div class="sstat-val">${mom.length}</div>
+            <div class="sstat-sub">liquid (₹1cr+/day)</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">In Uptrend${tip('mom_above200')}</div>
+            <div class="sstat-val up">${mom.length ? ((above/mom.length)*100).toFixed(0) : 0}%</div>
+            <div class="sstat-sub">above 200-DMA</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Top Momentum${tip('top_mom')}</div>
+            <div class="sstat-val up">${mom.length ? fmt(mom[0].mom_score,2) : '—'}</div>
+            <div class="sstat-sub">${mom.length ? mom[0].symbol : '—'}</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Best 12-1 Return${tip('ret_12_1')}</div>
+            <div class="sstat-val up">${mom.length ? fmtPct(Math.max(...mom.map(m=>m.ret_12_1||0)),0) : '—'}</div>
+            <div class="sstat-sub">trailing year</div>
+        </div>
+    `;
+    document.getElementById('momStaleNote').textContent = asOf
+        ? `⚠ Computed as of ${asOf} — equity_daily has a gap after this date; backfill prices to bring momentum current.`
+        : '';
+
+    function renderTable() {
+        const search = document.getElementById('momSearch').value.toUpperCase();
+        const sort = document.getElementById('momSort').value;
+        let f = mom.filter(m => !search || m.symbol.includes(search));
+        if (sort === 'mom_asc') f = f.slice().sort((a,b)=>a.mom_score-b.mom_score);
+        else if (sort === 'ret_desc') f = f.slice().sort((a,b)=>(b.ret_12_1||0)-(a.ret_12_1||0));
+        else if (sort === 'hi_desc') f = f.slice().sort((a,b)=>(b.pct_52w_high||0)-(a.pct_52w_high||0));
+        document.getElementById('momCount').textContent = f.length + ' stocks';
+
+        const maxM = Math.max(...mom.map(m=>Math.abs(m.mom_score||0)),1);
+        const rows = f.slice(0,100).map((m,i)=>{
+            const barW = Math.min(Math.abs(m.mom_score)/maxM*100,100);
+            const barCls = m.mom_score>=0?'bar-up':'bar-dn';
+            const trend = m.above_200dma
+                ? '<span class="pill pill-up">uptrend</span>'
+                : '<span class="pill pill-dn">downtrend</span>';
+            return `<td class="mono" style="color:var(--fg3)">${i+1}</td>
+                <td class="script-name">${m.symbol}</td>
+                <td class="r ${clsVal(m.mom_score)}" style="font-weight:700;font-family:'JetBrains Mono',monospace">${fmt(m.mom_score,3)}</td>
+                <td class="r mono">${m.mom_rank!=null?(m.mom_rank*100).toFixed(0)+'%':'—'}</td>
+                <td class="r ${clsVal(m.ret_12_1)} mono">${fmtPct(m.ret_12_1,0)}</td>
+                <td class="r ${clsVal(m.ret_6_1)} mono">${fmtPct(m.ret_6_1,0)}</td>
+                <td class="r mono">${fmtPct(m.pct_52w_high,0)}</td>
+                <td class="r">${trend}</td>
+                <td style="width:100px"><div class="bar-wrap"><div class="bar-fill ${barCls}" style="width:${barW}%"></div></div></td>`;
+        });
+        document.getElementById('momTable').innerHTML = makeTable(
+            [{label:'#'},{label:'Symbol'},{label:'Mom',align:'r',tip:'mom_score'},{label:'%ile',align:'r',tip:'mom_pctile'},
+             {label:'12-1',align:'r',tip:'ret_12_1'},{label:'6-1',align:'r',tip:'ret_6_1'},
+             {label:'vs 52wHi',align:'r',tip:'pct_52w_high'},{label:'Trend',align:'r',tip:'above200'},{label:''}], rows
+        );
+    }
+    document.getElementById('momSearch').addEventListener('input', renderTable);
+    document.getElementById('momSort').addEventListener('change', renderTable);
+    renderTable();
+}
+
+function renderValueQuality() {
+    const vq = DATA.value_quality_signal || [];
+    const byVal = vq.slice().sort((a,b)=>(b.value_score||-9)-(a.value_score||-9));
+    const byQual = vq.slice().sort((a,b)=>(b.quality_score||-9)-(a.quality_score||-9));
+
+    document.getElementById('vqStats').innerHTML = `
+        <div class="sstat">
+            <div class="sstat-label">Universe${tip('vq_universe')}</div>
+            <div class="sstat-val">${vq.length}</div>
+            <div class="sstat-sub">with fundamentals</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Cheapest${tip('top_value')}</div>
+            <div class="sstat-val gold">${byVal.length?byVal[0].symbol:'—'}</div>
+            <div class="sstat-sub">${byVal.length?'PE '+fmt(byVal[0].pe_ratio,1):''}</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Highest Quality${tip('top_quality')}</div>
+            <div class="sstat-val up">${byQual.length?byQual[0].symbol:'—'}</div>
+            <div class="sstat-sub">${byQual.length?'ROE '+fmt(byQual[0].roe,0)+'%':''}</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Best Combined${tip('top_vq')}</div>
+            <div class="sstat-val up">${vq.length?vq[0].symbol:'—'}</div>
+            <div class="sstat-sub">${vq.length?fmt(vq[0].vq_score,2):''}</div>
+        </div>
+    `;
+
+    function renderTable() {
+        const search = document.getElementById('vqSearch').value.toUpperCase();
+        const sort = document.getElementById('vqSort').value;
+        let f = vq.filter(v => !search || v.symbol.includes(search));
+        if (sort === 'value_desc') f = f.slice().sort((a,b)=>(b.value_score||-9)-(a.value_score||-9));
+        else if (sort === 'quality_desc') f = f.slice().sort((a,b)=>(b.quality_score||-9)-(a.quality_score||-9));
+        document.getElementById('vqCount').textContent = f.length + ' stocks';
+
+        const rows = f.slice(0,100).map((v,i)=>{
+            return `<td class="mono" style="color:var(--fg3)">${i+1}</td>
+                <td class="script-name">${v.symbol}</td>
+                <td class="r ${clsVal(v.vq_score)}" style="font-weight:700;font-family:'JetBrains Mono',monospace">${fmt(v.vq_score,3)}</td>
+                <td class="r ${clsVal(v.value_score)} mono">${fmt(v.value_score,2)}</td>
+                <td class="r ${clsVal(v.quality_score)} mono">${fmt(v.quality_score,2)}</td>
+                <td class="r mono">${fmt(v.pe_ratio,1)}</td>
+                <td class="r mono">${fmt(v.roe,1)}</td>
+                <td class="r mono">${fmt(v.roce,1)}</td>
+                <td class="r mono">${fmt(v.debt_to_equity,2)}</td>
+                <td class="r ${clsVal(v.opm_trend)} mono">${fmt(v.opm_trend,1)}</td>`;
+        });
+        document.getElementById('vqTable').innerHTML = makeTable(
+            [{label:'#'},{label:'Symbol'},{label:'Combined',align:'r',tip:'vq_score'},
+             {label:'Value',align:'r',tip:'value_score'},{label:'Quality',align:'r',tip:'quality_score'},
+             {label:'P/E',align:'r',tip:'pe_vq'},{label:'ROE%',align:'r',tip:'roe_vq'},{label:'ROCE%',align:'r',tip:'roce_vq'},
+             {label:'D/E',align:'r',tip:'de_vq'},{label:'OPM Δ',align:'r',tip:'opm_trend'}], rows
+        );
+    }
+    document.getElementById('vqSearch').addEventListener('input', renderTable);
+    document.getElementById('vqSort').addEventListener('change', renderTable);
+    renderTable();
+}
+
+function renderSmartMoney() {
+    const sm = DATA.smart_money_signal || [];
+    const deals = DATA.smart_money_deals || [];
+    const netBuyers = sm.filter(s => s.net_value_cr > 0).length;
+    const window = deals.length ? `${deals[deals.length-1].trade_date} → ${deals[0].trade_date}` : '—';
+
+    document.getElementById('smStats').innerHTML = `
+        <div class="sstat">
+            <div class="sstat-label">Symbols${tip('sm_symbols')}</div>
+            <div class="sstat-val">${sm.length}</div>
+            <div class="sstat-sub">${deals.length} deals</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Net Accumulated${tip('sm_netbuy')}</div>
+            <div class="sstat-val up">${netBuyers}</div>
+            <div class="sstat-sub">net buyers</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Net Distributed${tip('sm_netsell')}</div>
+            <div class="sstat-val dn">${sm.length - netBuyers}</div>
+            <div class="sstat-sub">net sellers</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Window${tip('sm_window')}</div>
+            <div class="sstat-val" style="font-size:14px">${window}</div>
+            <div class="sstat-sub">trailing deals</div>
+        </div>
+    `;
+
+    function renderTable() {
+        const search = document.getElementById('smSearch').value.toUpperCase();
+        const sort = document.getElementById('smSort').value;
+        let f = sm.filter(s => !search || s.symbol.includes(search));
+        f = f.slice().sort((a,b)=> sort==='net_asc' ? a.net_value_cr-b.net_value_cr : b.net_value_cr-a.net_value_cr);
+        document.getElementById('smCount').textContent = f.length + ' stocks';
+
+        const rows = f.slice(0,100).map((s,i)=>{
+            const repeat = s.repeat_accumulation ? '<span class="pill pill-up">repeat</span>' : '—';
+            return `<td class="mono" style="color:var(--fg3)">${i+1}</td>
+                <td class="script-name">${s.symbol}</td>
+                <td class="r ${clsVal(s.net_value_cr)}" style="font-weight:700;font-family:'JetBrains Mono',monospace">₹${fmt(s.net_value_cr,1)}cr</td>
+                <td class="r up mono">₹${fmt(s.buy_value_cr,1)}cr</td>
+                <td class="r dn mono">₹${fmt(s.sell_value_cr,1)}cr</td>
+                <td class="r mono">${s.n_unique_buyers}</td>
+                <td class="r">${repeat}</td>`;
+        });
+        document.getElementById('smTable').innerHTML = makeTable(
+            [{label:'#'},{label:'Symbol'},{label:'Net',align:'r',tip:'sm_net'},{label:'Bought',align:'r',tip:'sm_bought'},
+             {label:'Sold',align:'r',tip:'sm_sold'},{label:'Buyers',align:'r',tip:'sm_buyers'},{label:'Pattern',align:'r',tip:'sm_repeat'}], rows
+        );
+    }
+    document.getElementById('smSearch').addEventListener('input', renderTable);
+    document.getElementById('smSort').addEventListener('change', renderTable);
+    renderTable();
+
+    document.getElementById('smDealsCount').textContent = deals.length + ' deals';
+    const dRows = deals.slice(0,80).map(d=>{
+        const sideCls = (d.buy_sell||'').toUpperCase().includes('BUY') ? 'up' : 'dn';
+        return `<td class="mono" style="color:var(--fg3)">${d.trade_date}</td>
+            <td class="script-name">${d.symbol}</td>
+            <td style="font-size:11px;color:var(--fg2)">${d.client_name||'—'}</td>
+            <td class="r ${sideCls}" style="font-weight:600">${(d.buy_sell||'').toUpperCase()}</td>
+            <td class="r mono">₹${fmt(d.value_cr,1)}cr</td>
+            <td class="r mono" style="color:var(--fg3)">${d.deal_type}</td>`;
+    });
+    document.getElementById('smDealsTable').innerHTML = makeTable(
+        [{label:'Date'},{label:'Symbol'},{label:'Counterparty'},{label:'Side',align:'r'},
+         {label:'Value',align:'r'},{label:'Type',align:'r'}], dRows
+    );
+}
+
+function renderFO() {
+    const fo = DATA.fo_latest || [];
+    const div = DATA.participant_divergence || [];
+
+    document.getElementById('divDays').textContent = div.length + ' days';
+
+    function renderFoTable() {
+        const search = document.getElementById('foSearch').value.toUpperCase();
+        const regime = document.getElementById('foRegime').value;
+        const sort = document.getElementById('foSort').value;
+
+        let filtered = fo.filter(f => {
+            if (search && !f.symbol.includes(search)) return false;
+            if (regime && f.oi_regime !== regime) return false;
+            return true;
+        });
+
+        const [field, dir] = sort.split('_desc').length > 1 ? [sort.replace('_desc',''), 'desc'] :
+                             sort.split('_asc').length > 1 ? [sort.replace('_asc',''), 'asc'] : [sort, 'desc'];
+        const realField = field === 'fo_bullish_raw' ? 'fo_bullish_raw' : field === 'oi' ? 'oi' : field === 'pcr_oi' ? 'pcr_oi' : 'fo_bullish_raw';
+        filtered.sort((a,b) => dir === 'desc' ? (b[realField]||0)-(a[realField]||0) : (a[realField]||0)-(b[realField]||0));
+
+        const rows = filtered.map(f =>
+            `<td class="script-name">${f.symbol}</td><td class="r">${fmt(f.close,1)}</td><td>${regimePill(f.oi_regime)}</td>
+             <td class="r">${(f.oi/1e5).toFixed(1)}L</td><td class="r">${f.oi_change ? (f.oi_change/1e3).toFixed(0)+'K' : '—'}</td>
+             <td class="r">${fmt(f.pcr_oi,2)}</td><td class="r">${fmt(f.pcr_zscore,2)}</td>
+             <td class="r">${fmt(f.oi_momentum,3)}</td>
+             <td class="r ${clsVal(f.fo_bullish_raw)}" style="font-weight:600">${fmt(f.fo_bullish_raw,3)}</td>`
+        );
+        document.getElementById('foFullTable').innerHTML = makeTable(
+            [{label:'Symbol'},{label:'Close',align:'r'},{label:'Regime',tip:'regime'},{label:'OI',align:'r',tip:'oi'},
+             {label:'OI Δ',align:'r',tip:'oi_delta'},{label:'PCR',align:'r',tip:'pcr'},{label:'PCR Z',align:'r',tip:'pcr_z'},
+             {label:'OI Mom',align:'r',tip:'oi_mom'},{label:'Bullish',align:'r',tip:'fo_bullish'}], rows
+        );
+    }
+
+    document.getElementById('foSearch').addEventListener('input', renderFoTable);
+    document.getElementById('foRegime').addEventListener('change', renderFoTable);
+    document.getElementById('foSort').addEventListener('change', renderFoTable);
+    renderFoTable();
+
+    // Divergence chart
+    const divLabels = div.map(d => d.trade_date);
+    const divVals = div.map(d => d.divergence);
+    const iceC = isDark() ? '#818cf8' : '#6366f1';
+    divChartInstance = makeLineChart('divChart', divLabels, [{
+        data: divVals, borderColor: iceC, backgroundColor: iceC + '18', fill: true, borderWidth: 2
+    }], divChartInstance);
+
+    // Divergence stats
+    const vals = div.map(d => d.divergence).filter(v => v != null);
+    const mean = vals.reduce((a,b)=>a+b,0)/vals.length;
+    const latest = div.slice(-1)[0] || {};
+    document.getElementById('divStats').innerHTML = `
+        <div class="metric-row"><span class="met-key">Latest${tip('div_latest')}</span><span class="met-val ${clsVal(latest.divergence)}">${fmt(latest.divergence,4)}</span></div>
+        <div class="metric-row"><span class="met-key">Mean${tip('div_mean')}</span><span class="met-val">${fmt(mean,4)}</span></div>
+        <div class="metric-row"><span class="met-key">FII Bias${tip('fii_bias')}</span><span class="met-val ${clsVal(latest.fii_bias)}">${fmt(latest.fii_bias,4)}</span></div>
+        <div class="metric-row"><span class="met-key">Retail Bias${tip('retail_bias')}</span><span class="met-val ${clsVal(latest.client_bias)}">${fmt(latest.client_bias,4)}</span></div>
+        <div class="metric-row"><span class="met-key">FII Long</span><span class="met-val">${latest.fii_long ? (latest.fii_long/1e6).toFixed(2)+'M' : '—'}</span></div>
+        <div class="metric-row"><span class="met-key">FII Short</span><span class="met-val">${latest.fii_short ? (latest.fii_short/1e6).toFixed(2)+'M' : '—'}</span></div>
+    `;
+}
+
+function renderCHI() {
+    const chi = DATA.chi_latest || [];
+
+    function renderChiTable() {
+        const search = document.getElementById('chiSearch').value.toUpperCase();
+        const sort = document.getElementById('chiSort').value;
+
+        let filtered = chi.filter(c => !search || c.symbol.includes(search));
+
+        const [field, dir] = sort.includes('desc') ? [sort.replace('_desc',''), 'desc'] : [sort.replace('_asc',''), 'asc'];
+        const realField = field === 'chi' ? 'chi' : field === 'delta_ps' ? 'delta_ps' : field === 'net_buy' ? 'net_buy_value' : 'chi';
+        filtered.sort((a,b) => dir === 'desc' ? (b[realField]||0)-(a[realField]||0) : (a[realField]||0)-(b[realField]||0));
+
+        const rows = filtered.map(c => {
+            const chiW = Math.max(2, c.chi * 100);
+            const barCls = c.chi > 0.7 ? 'bar-up' : c.chi < 0.2 ? 'bar-dn' : 'bar-gold';
+            return `<td class="script-name">${c.symbol}</td><td class="r">${fmt(c.promoter_pct,1)}%</td>
+                <td class="r ${clsVal(c.delta_ps)}">${c.delta_ps > 0 ? '+':''}${fmt(c.delta_ps,2)}%</td>
+                <td class="r">${c.net_buy_value ? fmtCr(c.net_buy_value) : '—'}</td>
+                <td class="r">${fmt(c.pledge_net,0)}</td>
+                <td class="r" style="font-weight:600">${fmt(c.chi,3)}</td>
+                <td style="width:120px"><div class="bar-wrap"><div class="bar-fill ${barCls}" style="width:${chiW}%"></div></div></td>`;
+        });
+        document.getElementById('chiFullTable').innerHTML = makeTable(
+            [{label:'Symbol'},{label:'Promo%',align:'r',tip:'promo_pct'},{label:'Δ Promo',align:'r',tip:'delta_promo'},
+             {label:'Net Buy',align:'r',tip:'net_buy'},{label:'Pledge',align:'r',tip:'pledge'},
+             {label:'CHI',align:'r',tip:'chi'},{label:''}], rows
+        );
+    }
+
+    document.getElementById('chiSearch').addEventListener('input', renderChiTable);
+    document.getElementById('chiSort').addEventListener('change', renderChiTable);
+    renderChiTable();
+}
+
+function renderMacro() {
+    const macro = DATA.macro_monthly || [];
+    const sectors = DATA.sector_momentum || [];
+
+    const latest = macro.filter(m => m.macro_momentum != null).slice(-1)[0] || {};
+    const gstLatest = macro.filter(m => m.gst_yoy != null).slice(-1)[0] || {};
+    const iipLatest = macro.filter(m => m.iip_yoy != null).slice(-1)[0] || {};
+
+    document.getElementById('macroCards').innerHTML = `
+        <div class="sstat">
+            <div class="sstat-label">GST YoY (National)${tip('gst_yoy')}</div>
+            <div class="sstat-val ${clsVal(gstLatest.gst_yoy)}">${fmtPct(gstLatest.gst_yoy)}</div>
+            <div class="sstat-sub">${gstLatest.month || '—'}</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">IIP YoY (General)${tip('iip_yoy')}</div>
+            <div class="sstat-val ${clsVal(iipLatest.iip_yoy)}">${fmtPct(iipLatest.iip_yoy)}</div>
+            <div class="sstat-sub">${iipLatest.month || '—'}</div>
+        </div>
+        <div class="sstat">
+            <div class="sstat-label">Credit Growth YoY${tip('credit_yoy')}</div>
+            <div class="sstat-val ${clsVal(latest.credit_yoy)}">${fmtPct(latest.credit_yoy)}</div>
+            <div class="sstat-sub">${latest.month || '—'}</div>
+        </div>
+    `;
+
+    const recent = macro.filter(m => m.macro_momentum != null).slice(-24).reverse();
+    const macroRows = recent.map(m =>
+        `<td class="mono">${m.month}</td>
+         <td class="r">${m.gst_yoy != null ? fmtPct(m.gst_yoy) : '—'}</td>
+         <td class="r">${m.iip_yoy != null ? fmtPct(m.iip_yoy) : '—'}</td>
+         <td class="r">${m.credit_yoy != null ? fmtPct(m.credit_yoy) : '—'}</td>
+         <td class="r" style="font-weight:600">${fmtPct(m.macro_momentum)}</td>
+         <td class="r ${clsVal(m.momentum_zscore)}" style="font-weight:600">${fmt(m.momentum_zscore,2)}</td>`
+    );
+    document.getElementById('macroTable').innerHTML = makeTable(
+        [{label:'Month'},{label:'GST YoY',align:'r',tip:'gst_yoy'},{label:'IIP YoY',align:'r',tip:'iip_yoy'},
+         {label:'Credit YoY',align:'r',tip:'credit_yoy'},{label:'Composite',align:'r',tip:'macro_composite'},{label:'Z-Score',align:'r',tip:'macro_z'}], macroRows
+    );
+
+    const sectorRows = sectors.map(s => {
+        const barW = Math.min(Math.abs(s.iip_yoy) * 300, 100);
+        const barCls = s.iip_yoy >= 0 ? 'bar-up' : 'bar-dn';
+        return `<td>${s.sector}</td>
+                <td class="r ${clsVal(s.iip_yoy)}">${fmtPct(s.iip_yoy)}</td>
+                <td class="r">${(s.iip_rank*100).toFixed(0)}%</td>
+                <td style="width:150px"><div class="bar-wrap"><div class="bar-fill ${barCls}" style="width:${barW}%"></div></div></td>`;
+    });
+    document.getElementById('sectorFullTable').innerHTML = makeTable(
+        [{label:'Sector'},{label:'IIP YoY',align:'r'},{label:'Rank',align:'r'},{label:''}], sectorRows
+    );
+}
+
+function renderInsider() {
+    const insider = DATA.insider_recent || [];
+
+    function renderTable() {
+        const type = document.getElementById('insiderType').value;
+        const cat = document.getElementById('insiderCat').value;
+
+        let filtered = insider.filter(i => {
+            if (type && i.transaction_type !== type) return false;
+            if (cat && i.category !== cat) return false;
+            return true;
+        });
+
+        const typePill = t => {
+            const m = {Acquisition:'up',Disposal:'dn',Pledge:'amber',Revoke:'gold'};
+            return `<span class="pill pill-${m[t]||'neu'}">${t}</span>`;
+        };
+
+        const rows = filtered.slice(0, 100).map(i =>
+            `<td class="script-name">${i.security_name || '—'}</td><td>${i.person_name || '—'}</td>
+             <td><span class="pill pill-ice">${i.category||'—'}</span></td>
+             <td>${typePill(i.transaction_type||'—')}</td>
+             <td class="r">${i.acquired_qty ? Number(i.acquired_qty).toLocaleString() : '—'}</td>
+             <td class="r">${i.acquired_value ? fmtCr(i.acquired_value) : '—'}</td>
+             <td class="mono">${i.date_from || '—'}</td>
+             <td>${i.mode_of_acquisition || '—'}</td>`
+        );
+        document.getElementById('insiderTable').innerHTML = makeTable(
+            [{label:'Company'},{label:'Person'},{label:'Category'},{label:'Type'},
+             {label:'Qty',align:'r'},{label:'Value',align:'r'},{label:'Date'},{label:'Mode'}], rows
+        );
+    }
+
+    document.getElementById('insiderType').addEventListener('change', renderTable);
+    document.getElementById('insiderCat').addEventListener('change', renderTable);
+    renderTable();
+}
+
+function renderEarnings() {
+    const earnings = DATA.upcoming_earnings || [];
+    const rows = earnings.slice(0, 100).map(e =>
+        `<td class="mono">${e.meeting_date || '—'}</td><td class="script-name">${e.symbol || '—'}</td>
+         <td>${e.company_name || '—'}</td><td>${e.purpose || '—'}</td>`
+    );
+    document.getElementById('earningsTable').innerHTML = makeTable(
+        [{label:'Date'},{label:'Symbol'},{label:'Company'},{label:'Purpose'}], rows
+    );
+}
+
+// ─── Tab switching ───
+document.getElementById('tabs').addEventListener('click', e => {
+    const btn = e.target.closest('.tnav-btn');
+    if (!btn) return;
+    document.querySelectorAll('.tnav-btn').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+});
+
+// ─── Theme ───
+function toggleTheme() {
+    const html = document.documentElement;
+    const dark = html.getAttribute('data-theme') === 'dark';
+    html.setAttribute('data-theme', dark ? 'light' : 'dark');
+    const btn = document.getElementById('theme-toggle');
+    btn.innerHTML = dark ? '&#9790; Dark' : '&#9788; Light';
+    localStorage.setItem('qs-theme', dark ? 'light' : 'dark');
+    if (macroChartInstance || divChartInstance) {
+        renderOverview();
+        renderFO();
+    }
+}
+
+(function() {
+    const saved = localStorage.getItem('qs-theme');
+    if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        const btn = document.getElementById('theme-toggle');
+        if (btn) btn.innerHTML = '&#9788; Light';
+    }
+})();
+
+loadAll();
+</script>
+</body>
+</html>
