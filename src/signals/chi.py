@@ -140,27 +140,27 @@ def compute_chi(
     merged["net_buy_value"] = merged["net_buy_value"].fillna(0)
     merged["pledge_net"] = merged["pledge_net"].fillna(0)
 
-    # Cross-sectional ranking per quarter — vectorized
-    def compute_chi_quarter(g):
-        if len(g) < 10:
-            return g.assign(chi=np.nan)
+    # Cross-sectional ranking per quarter — fully vectorized (no groupby.apply, which in
+    # recent pandas drops the grouping column from the result and broke the downstream sort).
+    g = merged.copy()
+    grp = g.groupby("quarter_end")
+    q_count = grp["symbol"].transform("count")
 
-        # Asymmetric delta: buying gets full weight, selling 0.5x
-        delta_adj = np.where(g["delta_ps"] > 0, g["delta_ps"], g["delta_ps"] * 0.5)
-        rank_delta = pd.Series(delta_adj).rank(pct=True).values
-        rank_buy = g["net_buy_value"].rank(pct=True).values
-        rank_pledge = g["pledge_net"].rank(pct=True).values
+    # Asymmetric delta: promoter buying gets full weight, selling 0.5x
+    g["_delta_adj"] = np.where(g["delta_ps"] > 0, g["delta_ps"], g["delta_ps"] * 0.5)
+    rank_delta = g.groupby("quarter_end")["_delta_adj"].rank(pct=True)
+    rank_buy = grp["net_buy_value"].rank(pct=True)
+    rank_pledge = grp["pledge_net"].rank(pct=True)
 
-        chi_raw = 0.4 * rank_delta + 0.35 * rank_buy - 0.25 * rank_pledge
-        # Rescale to [0, 1]
-        chi_min, chi_max = chi_raw.min(), chi_raw.max()
-        if chi_max > chi_min:
-            chi_raw = (chi_raw - chi_min) / (chi_max - chi_min)
+    chi_raw = 0.4 * rank_delta + 0.35 * rank_buy - 0.25 * rank_pledge
+    # Rescale to [0, 1] within each quarter
+    cmin = chi_raw.groupby(g["quarter_end"]).transform("min")
+    cmax = chi_raw.groupby(g["quarter_end"]).transform("max")
+    chi_scaled = np.where(cmax > cmin, (chi_raw - cmin) / (cmax - cmin), chi_raw)
 
-        return g.assign(chi=chi_raw)
-
-    result = merged.groupby("quarter_end", group_keys=False).apply(compute_chi_quarter)
-    result = result.dropna(subset=["chi"]).sort_values(["symbol", "quarter_end"])
+    # require >= 10 names in the quarter for a meaningful cross-sectional rank
+    g["chi"] = np.where(q_count >= 10, chi_scaled, np.nan)
+    result = g.drop(columns=["_delta_adj"]).dropna(subset=["chi"]).sort_values(["symbol", "quarter_end"])
 
     print(f"  {len(result)} CHI scores computed")
 
