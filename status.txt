@@ -56,7 +56,11 @@ CODEBASE LAYOUT
 ├── src/validation/
 │   └── factor_validation.py      — Factor validation engine (Blueprint #4): Fama-MacBeth WLS +
 │                                    Newey-West t-stats, Spearman marginal-IC decay curves, circuit
-│                                    censoring → data/validation/{ic_decay,fama_macbeth}.parquet
+│                                    censoring → data/validation/{ic_decay,fama_macbeth,regime_validation}.parquet
+├── src/portfolio/
+│   └── paper_trade.py            — LIVE paper-trade track record (inception 2026-05-27): top-decile
+│                                    Conviction, equal-weight, monthly rebalance, daily MTM vs Nifty 500
+│                                    (^CRSLDX). Append-only data/paper/{holdings,nav}.parquet. Cron-wired.
 ├── src/signals/
 │   ├── cadp.py                   — Signal 1: Pre-Earnings Delivery Conviction (CADP)
 │   ├── fo_positioning.py         — Signal 2: F&O Informed Positioning (OI regime + PCR + divergence)

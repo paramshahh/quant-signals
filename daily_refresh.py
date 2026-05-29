@@ -138,6 +138,10 @@ def compute_signals():
             "Conviction Score (unified — blocks + shrinkage + agreement)",
             [sys.executable, "-m", "src.signals.conviction_score"],
         ),
+        (
+            "Paper-trade tracker (mark top-decile book vs Nifty 500)",
+            [sys.executable, "-m", "src.portfolio.paper_trade"],
+        ),
     ]
 
     success = 0
