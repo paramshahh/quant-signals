@@ -925,7 +925,7 @@ const TIPS = {
     conv_nblocks: "How many of the 5 factor blocks (Earnings, Value, Quality, Momentum, Flow) have data for this stock. More = more reliable.",
     conv_agree: "Share of present blocks pointing the same direction as the overall score. High agreement = broad confirmation; low = the signals disagree.",
     conv_driver: "The single factor block contributing most to this stock's score — the headline 'why'. E.g. Value = a valuation mismatch; Earn = an earnings-surprise beat.",
-    conv_attrib: "Factor attribution: each block's share of the positive drivers, color-coded (Earnings/Value/Quality/Momentum/Flow). Instantly shows whether a high score is earnings-led, value-led, momentum-led, etc.",
+    conv_attrib: "Bidirectional factor attribution radiating from a zero-line: positive blocks push RIGHT (drivers), negative blocks pull LEFT (detractors, dimmed). Color-coded by block; |z|=3 fills a side. Instantly shows both what drives the score and what drags it (e.g. strong Momentum right, expensive Value pulling left).",
     b_earnings: "Earnings block: robust-rank composite of SUE (earnings surprise) and FM (fundamental momentum).",
     b_value: "Value block: robust rank of the value composite (earnings yield, book-to-price, dividend yield).",
     b_quality: "Quality block: robust rank of ROE, ROCE, low leverage, margin trend, profit consistency.",
@@ -1320,15 +1320,20 @@ function renderConviction() {
         {k:'b_flow',     label:'Flow',     short:'Flow',  color:'#a78bfa'},
     ];
     function attribution(c) {
+        // Bidirectional bar radiating from a zero-line: positive blocks push RIGHT (drivers),
+        // negative blocks pull LEFT (detractors, dimmed) — so a +3 Mom / -1.5 Value name shows
+        // its valuation DRAG, not a misleadingly pure momentum bar.
         const parts = CONV_BLOCKS.map(b => ({...b, z: c[b.k]})).filter(x => x.z != null && !isNaN(x.z));
-        const pos = parts.filter(x => x.z > 0);
-        const tot = pos.reduce((s, x) => s + x.z, 0);
-        const driver = pos.length ? pos.reduce((a, b) => b.z > a.z ? b : a) : null;
-        let bar = '<div style="display:flex;height:11px;width:120px;border-radius:2px;overflow:hidden;background:var(--ink3)">';
-        if (tot > 0) pos.forEach(x => {
-            bar += `<div title="${x.label}: ${x.z.toFixed(2)} (${(x.z/tot*100).toFixed(0)}%)" style="width:${(x.z/tot*100).toFixed(1)}%;background:${x.color}"></div>`;
-        });
-        bar += '</div>';
+        const pos = parts.filter(x => x.z > 0).sort((a, b) => b.z - a.z);
+        const neg = parts.filter(x => x.z < 0).sort((a, b) => a.z - b.z);
+        const HALF = 60, REF = 3.0;   // px per side; |z|=3 fills a side (absolute scale, comparable across rows)
+        const seg = (x, drag) => `<div title="${x.label}: ${x.z.toFixed(2)}" style="width:${Math.min(Math.abs(x.z)/REF*HALF,HALF).toFixed(1)}px;background:${x.color};height:11px;${drag?'opacity:.45':''}"></div>`;
+        const bar = `<div style="display:flex;align-items:center;width:${HALF*2+1}px">
+            <div style="display:flex;justify-content:flex-end;width:${HALF}px;height:11px;border-radius:2px 0 0 2px;overflow:hidden">${neg.map(x=>seg(x,true)).join('')}</div>
+            <div style="width:1px;height:14px;background:var(--fg2)"></div>
+            <div style="display:flex;width:${HALF}px;height:11px;border-radius:0 2px 2px 0;overflow:hidden">${pos.map(x=>seg(x,false)).join('')}</div>
+        </div>`;
+        const driver = pos.length ? pos[0] : (parts.length ? parts.slice().sort((a,b)=>Math.abs(b.z)-Math.abs(a.z))[0] : null);
         const pill = driver
             ? `<span class="pill" style="background:${driver.color}22;color:${driver.color};border:1px solid ${driver.color}66">${driver.short}</span>`
             : '<span style="color:var(--fg3)">—</span>';
