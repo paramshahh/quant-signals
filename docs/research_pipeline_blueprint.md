@@ -20,8 +20,19 @@ Progress:
 - [ ] #1b Demerger CoA ingestion (the proper Trap-5 fix): ingest NSE published Cost-of-Acquisition
       apportionment ratios + a parent↔child map, so parent history adjusts even when the action is
       filed under the resulting entity. Data-acquisition task.
-- [ ] #2 Bitemporal PIT bridge   - [ ] #3 Sector neutralization
-- [ ] #4 Validation engine       - [ ] #5 Execution friction
+- [x] **#2 Bitemporal PIT bridge** — DONE 2026-05-27. `src/processing/pit_bridge.py` →
+      DuckDB table `fundamental_bridge` (13,946 rows; 89% knowledge_date via real board
+      meetings, 11% via SEBI fallback). Each row bitemporal (effective_date = quarter end;
+      knowledge_date = board meeting that adopted results). Guardrails:
+        1. T+1 strict — serving join is `trade_date > knowledge_date` (NOT >=). Proven on
+           MUTHOOTFIN: on the 2026-05-14 meeting day the backtester still sees Dec-2025
+           (EPS 69.84), only seeing Mar-2026 (83.43) from 05-16.
+        2. 45/60-day SEBI fallback when board date missing (60d for March/annual) — no quarter
+           orphaned from coverage shrinkage.
+        3. INSERT-only — restatements append a new (effective_date, knowledge_date) vintage;
+           ASOF serves the version known as of each trade_date. Re-runs idempotent (+0 rows).
+      Serving contract: ASOF JOIN daily prices on `p.trade_date > b.knowledge_date`.
+- [ ] #3 Sector neutralization   - [ ] #4 Validation engine   - [ ] #5 Execution friction
 
 > Premise from the reviewer: we are well-positioned because we ingest **raw unadjusted
 > NSE bhavcopy** (not pre-adjusted Yahoo data) and have **board-meeting timestamps** — the

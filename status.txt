@@ -47,9 +47,12 @@ CODEBASE LAYOUT
 │   ├── raw/screener/             — 1,512 per-symbol JSON files from screener.in
 │   └── export/                   — JSON exports for the HTML dashboard
 ├── src/processing/
-│   └── total_return_index.py     — Corporate-action price adjustment (backward CAF for splits/
-│                                    bonuses/dividends) → data/adjusted_prices.parquet + DuckDB
-│                                    table adjusted_prices. Momentum runs off adj_close. (Blueprint #1)
+│   ├── total_return_index.py     — Corporate-action price adjustment (backward CAF for splits/
+│   │                                bonuses/dividends/demergers, ISIN-keyed) → data/adjusted_prices.parquet
+│   │                                + DuckDB table adjusted_prices. Momentum runs off adj_close. (Blueprint #1)
+│   └── pit_bridge.py             — Bitemporal Point-in-Time bridge → DuckDB table fundamental_bridge
+│                                    (effective_date + knowledge_date via board_meetings; T+1 strict ASOF;
+│                                    45/60-day SEBI fallback; INSERT-only restatement safe). (Blueprint #2)
 ├── src/signals/
 │   ├── cadp.py                   — Signal 1: Pre-Earnings Delivery Conviction (CADP)
 │   ├── fo_positioning.py         — Signal 2: F&O Informed Positioning (OI regime + PCR + divergence)
