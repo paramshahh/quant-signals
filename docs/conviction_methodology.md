@@ -12,7 +12,7 @@ Implementation: `src/signals/conviction_score.py`. Output: `data/conviction_scor
 
 | # | Step | What it does | Why — literature |
 |---|------|--------------|------------------|
-| 1 | **Robust rank → normal** | Each signal → cross-sectional percentile rank → inverse-normal score (Acklam ppf), winsorized ±3σ. Every signal becomes ~N(0,1) by rank, so no single outlier dominates. | Normal-scores / van der Waerden transform — **Blom (1958)**. Rank-standardizing factors: **Asness, Moskowitz & Pedersen (2013)**. |
+| 1 | **MAD robust-z, sector-aware** | Each signal → robust z `(x−median)/(1.4826·MAD)`, clip ±3σ (MAD not poisoned by micro-cap outliers). **Value & Quality standardized WITHIN AMFI macro sector** (sector-neutral); **SUE, Momentum, Flow market-wide**. | Robust standardization (MAD) over mean/std; sector-neutral value/quality avoids the PSU/oil value-trap. |
 | 2 | **6 factor blocks** | Collapse correlated signals into themes: `Earnings` (SUE+FM), `Value`, `Quality`, `Momentum`, `Flow` (F&O+CADP+CHI+smart-money), + a `Macro` tilt. Average *within* a block, weight *across* blocks — so a theme with many sub-signals can't cast extra votes. | Factor-zoo redundancy: **Cochrane (2011)**, **Harvey, Liu & Zhu (2016)**, **Green, Hand & Zhang (2017)**. |
 | 3 | **Coverage shrinkage** | Composite × `n_blocks / (n_blocks + 2.5)`. Thin-evidence names pulled toward neutral; full-coverage names keep full strength. | Shrinkage estimators dominate MLE: **James & Stein (1961)**; **Jorion (1986)**; **Ledoit & Wolf (2004)**. |
 | 4 | **Agreement multiplier** | × `(0.5 + 0.5·agreement)`, where agreement = share of present blocks whose sign matches the composite. Consensus rewarded, conflict haircut. | Averaging independent signals raises effective IC: Fundamental Law of Active Management — **Grinold (1989)**. |
@@ -20,6 +20,15 @@ Implementation: `src/signals/conviction_score.py`. Output: `data/conviction_scor
 | 6 | **0–100 map** | Standardize the final score, map through a logistic (`100/(1+e^(−1.7z))`). 50 = median. | Monotone squashing for interpretability. |
 
 Momentum block itself rests on **Jegadeesh & Titman (1993)** and the 52-week-high effect of **George & Hwang (2004)**.
+
+### Sector source & SUE decay (added in blueprint #3)
+- **Sector neutralization** uses the canonical **AMFI Macro-Economic Sector** (the `IN0X` codes, e.g.
+  IN05 Financial Services, IN08 IT) captured natively from screener.in's `/market/IN0X/` hierarchy —
+  not the dirty NSE-filings `industry` tag. Static guardrail = the canonical IN-code set (flags UNMAPPED drift).
+- **SUE time-decay**: SUE is multiplied by `0.5^(Δ/H)`, Δ = days since the PEAD became public
+  (the PIT `knowledge_date`), `H ≈ 21 trading days (~30 cal)` — the retail-crowded Indian market
+  corrects the underreaction faster than the classic US ~50-day Bernard-Thomas figure. A 15-day-old
+  beat retains ~71%; stale beats fade out of the composite. (`H` is a prior pending IC calibration in #4.)
 
 ---
 

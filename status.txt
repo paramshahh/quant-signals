@@ -1,6 +1,6 @@
 QUANT SIGNALS — PROJECT STATUS
-Last updated: 2026-05-27 (FULL BACKFILL — all 19 tables current to 2026-05-27; Conviction Score added;
-                          10 signals; dashboard 12 tabs; corporate-loader + IIP-parser bugs fixed)
+Last updated: 2026-05-27 (RESEARCH PIPELINE phase — TRI + Bitemporal PIT + AMFI sector neutralization
+                          + Fama-MacBeth/IC validation engine built; deep 2015→2026 multi-regime panel seeding)
 
 >>> MILESTONE 2026-05-27: closed a 367-day data gap. equity/F&O/FII/corporate were stale at 2025-05-16;
     backfilled the full year + re-scraped all screener fundamentals. For the FIRST time every table and
@@ -296,6 +296,47 @@ WHAT'S NEXT
   [ ] Paper portfolio tracker (mechanical top-20 MasterScore, track forward PnL)
   [ ] Weekly screener refresh cron (re-scrape quarterly after results season ~Feb/May/Aug/Nov)
   [ ] Ledoit-Wolf shrinkage weighting for MasterScore (currently equal-weight)
+
+=====================================
+RESEARCH & VALIDATION PIPELINE  (full spec: docs/research_pipeline_blueprint.md + docs/conviction_methodology.md)
+=====================================
+Built to turn the signal layer into an honest, un-leaked backtest. Five architectural pivots:
+
+1. TRI CONSTRUCTION (src/processing/total_return_index.py) — prices are RAW UNADJUSTED,
+   UN-STITCHED daily closes; adjusted BACKWARD via a cumulative factor (today = immutable anchor).
+   Splits = FV ratio; equity bonuses B/(A+B) (NCRPS excluded); dividends 1−D/cum_close; demergers
+   implied pre-open factor. Grouped by ISIN (bridges renames). Deep historical CA seed via yfinance.
+   Same-day actions aggregated into one daily factor before the cumulative product.
+
+2. BITEMPORAL PIT LAYER (src/processing/pit_bridge.py) — every fundamental row carries
+   effective_date (quarter end) + knowledge_date (board meeting that adopted results). Serving join
+   is ASOF with STRICT T+1: trade_date > knowledge_date (board meetings conclude after close).
+   Missing board date pre-2023 → SEBI 45-day fallback (60d for the March/annual quarter). INSERT-only
+   (restatements append a new vintage; ASOF serves the version known as of each trade_date).
+
+3. AMFI SECTOR NEUTRALIZATION (conviction_score.py + company_sectors) — canonical IN0X macro
+   sectors captured from screener.in /market/ hierarchy (NOT the dirty NSE-filings industry tag).
+   MAD robust-z (x−median)/(1.4826·MAD) WITHIN sector for Value & Quality; market-wide for
+   SUE/Momentum/Flow (preserves sector-momentum + PEAD regimes). Static IN-code guardrail vs drift.
+
+4. VALIDATION MATH (src/validation/factor_validation.py) — Fama-MacBeth cross-sectional regressions
+   with NEWEY-WEST (Bartlett) t-stats, lag L = τ−1 (the overlapping-return MA(τ−1) correction);
+   WEIGHTED LEAST SQUARES by sqrt(ADTV_20); SPEARMAN rank IC; MARGINAL IC decay (single-day fwd at
+   t+k) for half-life fitting; cumulative IC + IC-IR (mean/std) for capital decisions. Segmented
+   across 4 structural regimes (2015 midcap euphoria / 2018 liquidity shock / 2020 V-shape / 2022 rotation).
+
+5. EXECUTION CENSORING — circuit-lock filter (O==H==L==C → no ask liquidity, excluded at formation)
+   + hard liquidity gate (trailing-20d ADTV ≥ Rs5cr) which also proxies out survivorship-delisting risk.
+
+KNOWN BIASES (documented, not hidden):
+- Survivorship: screener fundamentals/sector are a CURRENT snapshot (delisted blow-ups DHFL/Jet/RCom
+  absent) → Value looks rosy in the 2018 crash. Mitigation = the Rs5cr ADTV censor (distress shows in
+  liquidity before delisting). No free fix without paid PIT fundamentals (WRDS/Compustat).
+- SUE execution-lag seam: +45d handicap pre-2023 (SEBI fallback) vs T+1 post-2023 → expect an IC
+  step-up into 2023. If SUE is significant pre-2023 DESPITE the lag, the alpha is structurally real.
+
+WEIGHTS: block weights EQUAL, H≈21 a PRIOR — held until the multi-regime IC measurement justifies
+fitting (DeMiguel: don't optimize on one bull regime). Validation proves the pipeline works, not a verdict.
 
 =====================================
 SIGNAL SPECIFICATIONS

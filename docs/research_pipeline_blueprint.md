@@ -130,6 +130,19 @@ Beyond Spearman rank IC (exploratory only):
 
 ---
 
+## KNOWN BIASES (must stay documented)
+- **Survivorship bias (fundamentals/sector).** Prices+CA go back to 2015, but fundamentals and the
+  AMFI sector map come from screener.in — a CURRENT-snapshot DB holding only companies alive today.
+  Blow-ups that delisted 2015-2020 (DHFL, Jet Airways, Reliance Comms, Sintex) are ABSENT, so the
+  Value block looks artificially good in the 2018 crash (it "bought the dip" on survivors; in reality
+  it would also have bought DHFL to zero). No free fix (needs paid WRDS/Compustat PIT). Mitigation:
+  hard liquidity censor — drop any name with trailing-20d ADTV < Rs5cr from the Conviction Score, since
+  distressed names collapse in liquidity well before delisting. (MIN_ADTV_LAKH=500 in factor_validation.)
+- **SUE execution-lag seam.** Pre-2023 knowledge_date uses the SEBI +45/60d fallback (no board dates);
+  post-2023 uses real board meetings (T+1). So SUE is handicapped ~45d pre-2023 and sharp post-2023 —
+  expect a structural IC step-UP into 2023. If SUE is significant pre-2023 DESPITE the handicap, the
+  alpha is structurally real, not a microstructure illusion. Flag, don't "fix" (the lag is conservative).
+
 ## Build order (dependencies)
 1. **CA engine / Total Return Index** — fixes the live momentum bug; prerequisite for all returns.
 2. **Bitemporal PIT bridge** (`knowledge_date` + ASOF JOIN).
