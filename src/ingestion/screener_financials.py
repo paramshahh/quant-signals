@@ -160,6 +160,23 @@ def scrape_company(symbol, session=None):
             rows, periods = _parse_table(tables[0])
             result["shareholding_q"] = {"periods": periods, **rows}
 
+    # Sector classification — screener exposes the SEBI/AMFI macro-economic sector hierarchy
+    # via /market/IN##/... links. Top level (IN0X) = macro sector; deepest = basic industry.
+    market_links = []  # (depth, code_path, text)
+    for a in soup.find_all("a", href=True):
+        m = re.match(r"^/market/(IN\d+(?:/IN\d+)*)/?$", a["href"])
+        if m:
+            path = m.group(1)
+            market_links.append((path.count("IN"), path, a.get_text(strip=True)))
+    if market_links:
+        market_links.sort(key=lambda x: x[0])
+        top = market_links[0]
+        result["sector"] = {
+            "macro_code": top[1].split("/")[0],   # e.g. IN05
+            "macro": top[2],                       # e.g. Financial Services (AMFI macro sector)
+            "industry": market_links[-1][2],       # deepest = basic industry
+        }
+
     return result
 
 
@@ -300,6 +317,23 @@ def build_ratios_df(data_dir=EXPORT_DIR):
     return pd.DataFrame(records)
 
 
+def build_sector_df(data_dir=EXPORT_DIR):
+    """Build symbol -> AMFI macro sector map from the scraped screener classification."""
+    records = []
+    for f in data_dir.glob("*.json"):
+        with open(f) as fh:
+            data = json.load(fh)
+        sec = data.get("sector")
+        if sec:
+            records.append({
+                "symbol": data["symbol"],
+                "macro_code": sec.get("macro_code"),
+                "macro_sector": sec.get("macro"),
+                "industry": sec.get("industry"),
+            })
+    return pd.DataFrame(records)
+
+
 def load_to_duckdb(con=None):
     """Load all scraped data into DuckDB tables."""
     should_close = False
@@ -327,6 +361,14 @@ def load_to_duckdb(con=None):
         con.register("ratios_df", ratios)
         con.execute("CREATE TABLE company_ratios AS SELECT * FROM ratios_df")
         print(f"  company_ratios: {len(ratios)} rows")
+
+    sectors = build_sector_df()
+    if not sectors.empty:
+        con.execute("DROP TABLE IF EXISTS company_sectors")
+        con.register("sectors_df", sectors)
+        con.execute("CREATE TABLE company_sectors AS SELECT * FROM sectors_df")
+        print(f"  company_sectors: {len(sectors)} rows, "
+              f"{sectors['macro_sector'].nunique()} macro sectors")
 
     if should_close:
         con.close()

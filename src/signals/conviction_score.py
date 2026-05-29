@@ -95,6 +95,32 @@ def _robust(s: pd.Series) -> pd.Series:
     return z
 
 
+def _mad_z(s: pd.Series, clip: float = 3.0) -> pd.Series:
+    """Robust z-score via Median Absolute Deviation. MAD is not poisoned by a single
+    illiquid micro-cap outlier the way mean/std is:  z = (x - median) / (1.4826 * MAD)."""
+    x = s.astype(float)
+    med = x.median()
+    mad = (x - med).abs().median()
+    if mad and not np.isnan(mad):
+        return ((x - med) / (1.4826 * mad)).clip(-clip, clip)
+    sd = x.std()
+    if sd and not np.isnan(sd):
+        return ((x - med) / sd).clip(-clip, clip)
+    return pd.Series(0.0, index=s.index)
+
+
+def _mad_z_within_sector(values: pd.Series, sector_map: pd.Series, min_n: int = 5) -> pd.Series:
+    """MAD z-score computed WITHIN each macro sector (sector-neutral). Stocks with no
+    sector tag, or in a too-small sector bucket, fall back to the market-wide MAD z."""
+    mkt = _mad_z(values)
+    out = mkt.copy()
+    sec = sector_map.reindex(values.index)
+    for s, idx in values.groupby(sec).groups.items():
+        if len(idx) >= min_n:
+            out.loc[idx] = _mad_z(values.loc[idx])
+    return out.clip(-3.0, 3.0)
+
+
 def _load(name, cols=None, latest_date_col=None, latest_group="symbol"):
     p = DATA_DIR / f"{name}.parquet"
     if not p.exists():
@@ -151,12 +177,51 @@ def compute_conviction(con: Optional[duckdb.DuckDBPyConnection] = None) -> pd.Da
         print("  No signals available")
         return pd.DataFrame()
 
-    # ── Robust-rank each signal, merge into a wide frame ──
+    # ── Sector map + earnings knowledge dates (blueprint #3) ──
+    _con = con or duckdb.connect(str(DB_PATH), read_only=True)
+    try:
+        sec_df = _con.execute(
+            "SELECT symbol, macro_sector FROM company_sectors WHERE macro_sector IS NOT NULL"
+        ).fetchdf()
+        sector_map = sec_df.drop_duplicates("symbol").set_index("symbol")["macro_sector"]
+        print(f"  Sector map: {len(sector_map)} symbols, {sector_map.nunique()} AMFI macro sectors")
+    except Exception:
+        sector_map = pd.Series(dtype=object)
+        print("  WARN: company_sectors missing -> Value/Quality fall back to market-wide (not sector-neutral)")
+    try:
+        kd = _con.execute(
+            "SELECT symbol, MAX(knowledge_date) kd FROM fundamental_bridge GROUP BY symbol"
+        ).fetchdf()
+        kd_map = pd.to_datetime(kd.set_index("symbol")["kd"])
+        as_of = pd.to_datetime(_con.execute("SELECT MAX(trade_date) FROM adjusted_prices").fetchone()[0])
+    except Exception:
+        kd_map, as_of = pd.Series(dtype="datetime64[ns]"), None
+    if con is None:
+        _con.close()
+
+    # ── SUE time-decay anchored to knowledge_date (PEAD is event alpha, decays fast).
+    #    H ~= 21 trading days (~30 calendar) for the retail-crowded Indian market. ──
+    H_CAL = 30.0
+    if as_of is not None and "sue" in parts and len(kd_map):
+        sdf = parts["sue"].drop_duplicates("symbol").set_index("symbol")
+        delta = (as_of - kd_map.reindex(sdf.index)).dt.days
+        decay = np.power(0.5, delta / H_CAL).fillna(1.0)   # no knowledge_date -> undecayed
+        sdf["v"] = sdf["v"].astype(float) * decay.values
+        parts["sue"] = sdf.reset_index()
+        print(f"  SUE decayed to knowledge_date (H={H_CAL:.0f}d cal ~= 21 td); "
+              f"median age {delta.median():.0f}d, median retained {decay.median()*100:.0f}%")
+
+    # ── Standardize each signal (MAD robust-z). Value/Quality WITHIN sector;
+    #    SUE/Momentum/Flow market-wide (sector-momentum & PEAD regimes preserved). ──
+    SECTOR_NEUTRAL = {"value", "quality"}
     universe = sorted(set().union(*[set(p["symbol"]) for p in parts.values()]))
     R = pd.DataFrame({"symbol": universe}).set_index("symbol")
     for key, df in parts.items():
         s = df.dropna(subset=["v"]).drop_duplicates("symbol").set_index("symbol")["v"]
-        R[key] = _robust(s).reindex(R.index)
+        if key in SECTOR_NEUTRAL and len(sector_map):
+            R[key] = _mad_z_within_sector(s, sector_map).reindex(R.index)
+        else:
+            R[key] = _mad_z(s).reindex(R.index)
 
     # ── Collapse signals into 6 factor blocks (mean of available components) ──
     blocks = pd.DataFrame(index=R.index)
@@ -176,7 +241,8 @@ def compute_conviction(con: Optional[duckdb.DuckDBPyConnection] = None) -> pd.Da
     # weighted mean over PRESENT blocks (renormalised weights)
     Wmat = np.where(present, W, 0.0)
     wsum = Wmat.sum(axis=1)
-    composite_raw = np.where(wsum > 0, np.nansum(np.where(present, B, 0.0) * Wmat, axis=1) / wsum, np.nan)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        composite_raw = np.where(wsum > 0, np.nansum(np.where(present, B, 0.0) * Wmat, axis=1) / wsum, np.nan)
 
     # coverage shrinkage: thin evidence -> pull toward neutral
     shrink = n_blocks / (n_blocks + SHRINK_K)

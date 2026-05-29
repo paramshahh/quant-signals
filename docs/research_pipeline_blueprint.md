@@ -32,7 +32,20 @@ Progress:
         3. INSERT-only — restatements append a new (effective_date, knowledge_date) vintage;
            ASOF serves the version known as of each trade_date. Re-runs idempotent (+0 rows).
       Serving contract: ASOF JOIN daily prices on `p.trade_date > b.knowledge_date`.
-- [ ] #3 Sector neutralization   - [ ] #4 Validation engine   - [ ] #5 Execution friction
+- [x] **#3 Sector/Beta neutralization** — DONE 2026-05-27.
+        - Sector source: screener.in exposes the SEBI/AMFI macro hierarchy via /market/IN0X/ links.
+          Extended the scraper to capture macro_code + macro_sector + basic_industry → DuckDB
+          table `company_sectors` (12 AMFI sectors IN01–IN12, ~75% of scored universe, was 42%
+          on dirty filings). Static guardrail = the canonical IN-code set (no UNMAPPED drift).
+        - Method: MAD robust-z `(x−median)/(1.4826·MAD)` everywhere (replaces rank-normal),
+          clip ±3 (only ~5% clipped). Value & Quality standardized WITHIN macro sector
+          (min 5/bucket else market-wide fallback); SUE/Momentum/Flow market-wide.
+        - SUE time-decay anchored to PIT knowledge_date, H=30 cal days (~21 trading) — Indian
+          retail crowding corrects PEAD faster than the US 50–60d. 15-day-old beat retains 71%.
+        - Block weights EQUAL (horizon weighting deferred to #4 to avoid polluting the baseline).
+        - Result: value-block top went from PSU-bank/oil concentrated to spread across 8 sectors.
+- [ ] #4 Validation engine (Fama-MacBeth + Newey-West t-stats + IC decay curves → fits H and weights)
+- [ ] #5 Execution friction (√-impact cost + circuit filter)
 
 > Premise from the reviewer: we are well-positioned because we ingest **raw unadjusted
 > NSE bhavcopy** (not pre-adjusted Yahoo data) and have **board-meeting timestamps** — the

@@ -95,6 +95,10 @@ def compute_signals():
             [sys.executable, "-m", "src.processing.total_return_index"],
         ),
         (
+            "Bitemporal PIT bridge (fundamental knowledge dates)",
+            [sys.executable, "-m", "src.processing.pit_bridge"],
+        ),
+        (
             "Signal 1: CADP (pre-earnings delivery)",
             [sys.executable, "-m", "src.signals.cadp"],
         ),
