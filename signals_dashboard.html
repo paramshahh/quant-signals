@@ -664,6 +664,7 @@ body {
                 <span style="color:#a78bfa">■ Flow</span>
             </div>
         </div>
+        <div id="convPortfolio"></div>
         <div class="filter-bar">
             <label>Search</label>
             <input type="text" id="convSearch" placeholder="Symbol...">
@@ -679,6 +680,9 @@ body {
                 <option value="top">Highest Conviction</option>
                 <option value="bottom">Lowest Conviction</option>
             </select>
+            <label style="margin-left:auto;display:flex;align-items:center;gap:5px;cursor:pointer">
+                <input type="checkbox" id="convMineOnly"> 📍 My holdings only
+            </label>
         </div>
         <div id="convTable" style="overflow-x:auto"></div>
     </div>
@@ -787,11 +791,19 @@ body {
 const BASE = 'data/export/';
 let DATA = {};
 
+// Current portfolio holdings (NSE symbol -> shares). Update as you trade — overlays your
+// book onto the Conviction ranking. Mirrors the portfolio_tracker positions.
+const MY_HOLDINGS = {
+    MUTHOOTFIN:23, MCX:12, APOLLOHOSP:10, SOLARINDS:2, CAPLIPOINT:25, 'KARURVYSYA':130,
+    APTUS:200, AFFLE:10, HSCL:50, CHOLAFIN:30, 'GVT&D':15, ANANTRAJ:50, CUB:200,
+    CENTRALBK:200, TORNTPHARM:11
+};
+
 async function loadAll() {
     const files = ['fo_latest','participant_divergence','chi_latest','macro_monthly',
                    'sector_momentum','insider_recent','upcoming_earnings','db_stats',
                    'master_score','sue_signal','momentum_signal','value_quality_signal',
-                   'smart_money_signal','smart_money_deals','conviction_score'];
+                   'smart_money_signal','smart_money_deals','conviction_score','company_sectors'];
     await Promise.all(files.map(f =>
         fetch(BASE + f + '.json').then(r => r.json()).then(d => DATA[f] = d).catch(() => DATA[f] = [])
     ));
@@ -924,6 +936,7 @@ const TIPS = {
     conv_score: "Unified 0–100 conviction. 50 = median stock. Built from robust ranks, factor blocks, coverage shrinkage, sign-agreement, and interaction guards. Weights equal pending IC validation.",
     conv_nblocks: "How many of the 5 factor blocks (Earnings, Value, Quality, Momentum, Flow) have data for this stock. More = more reliable.",
     conv_agree: "Share of present blocks pointing the same direction as the overall score. High agreement = broad confirmation; low = the signals disagree.",
+    conv_conc: "Your book's largest sector weight. Conviction is SECTOR-NEUTRAL by design (it ranks within sector), so it can't warn you about portfolio concentration — this does. ⚠ flags when ≥40% of holdings sit in one AMFI macro sector.",
     conv_driver: "The single factor block contributing most to this stock's score — the headline 'why'. E.g. Value = a valuation mismatch; Earn = an earnings-surprise beat.",
     conv_attrib: "Bidirectional factor attribution radiating from a zero-line: positive blocks push RIGHT (drivers), negative blocks pull LEFT (detractors, dimmed). Color-coded by block; |z|=3 fills a side. Instantly shows both what drives the score and what drags it (e.g. strong Momentum right, expensive Value pulling left).",
     b_earnings: "Earnings block: robust-rank composite of SUE (earnings surprise) and FM (fundamental momentum).",
@@ -1281,6 +1294,40 @@ function renderConviction() {
     const strong = cs.filter(c => c.conviction >= 80);
     const topReliable = (full.length ? full : cs)[0] || {};   // trustworthy headline pick
 
+    // ── My Portfolio overlay: where your book sits in the ranking + the concentration risk
+    //    the sector-neutral score structurally can't show you ──
+    (function renderPortfolio(){
+        const held = cs.filter(c => MY_HOLDINGS[c.symbol] != null);
+        const el = document.getElementById('convPortfolio');
+        if (!held.length) { el.innerHTML = ''; return; }
+        const byConv = held.slice().sort((a,b)=>b.conviction-a.conviction);
+        const avg = held.reduce((s,c)=>s+c.conviction,0)/held.length;
+        const best = byConv[0], worst = byConv[byConv.length-1];
+        // sector concentration (needs value_quality_signal? we have macro via conviction? use driver as proxy if no sector)
+        const secMap = {}; (DATA.company_sectors||[]).forEach(s=>secMap[s.symbol]=s.macro_sector);
+        const secCount = {}; held.forEach(c=>{ const s=secMap[c.symbol]||'—'; secCount[s]=(secCount[s]||0)+1; });
+        const topSec = Object.entries(secCount).sort((a,b)=>b[1]-a[1])[0]||['—',0];
+        const concPct = (topSec[1]/held.length*100).toFixed(0);
+        const conc = topSec[1]>=held.length*0.4
+            ? `<span style="color:var(--dn)">⚠ ${concPct}% in ${topSec[0]}</span>`
+            : `${concPct}% ${topSec[0]}`;
+        el.innerHTML = `
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:6px;margin:0 16px 4px;overflow:hidden">
+              <div style="background:var(--ink2);padding:10px 14px">
+                <div style="font-size:9px;letter-spacing:.15em;color:var(--fg3);font-family:'JetBrains Mono'">📍 MY BOOK</div>
+                <div style="font-size:22px;font-weight:600">${held.length}<span style="font-size:11px;color:var(--fg3)"> held</span></div></div>
+              <div style="background:var(--ink2);padding:10px 14px">
+                <div style="font-size:9px;letter-spacing:.15em;color:var(--fg3);font-family:'JetBrains Mono'">AVG CONVICTION</div>
+                <div style="font-size:22px;font-weight:600;color:${avg>=70?'var(--up)':avg>=50?'var(--fg)':'var(--dn)'}">${avg.toFixed(0)}</div></div>
+              <div style="background:var(--ink2);padding:10px 14px">
+                <div style="font-size:9px;letter-spacing:.15em;color:var(--fg3);font-family:'JetBrains Mono'">STRONGEST / WEAKEST</div>
+                <div style="font-size:13px;font-weight:600"><span class="up">${best.symbol} ${best.conviction.toFixed(0)}</span> · <span class="dn">${worst.symbol} ${worst.conviction.toFixed(0)}</span></div></div>
+              <div style="background:var(--ink2);padding:10px 14px">
+                <div style="font-size:9px;letter-spacing:.15em;color:var(--fg3);font-family:'JetBrains Mono'">CONCENTRATION${tip('conv_conc')}</div>
+                <div style="font-size:13px;font-weight:600;margin-top:4px">${conc}</div></div>
+            </div>`;
+    })();
+
     document.getElementById('convStats').innerHTML = `
         <div class="sstat">
             <div class="sstat-label">Stocks Scored${tip('conv_scored')}</div>
@@ -1344,16 +1391,22 @@ function renderConviction() {
         const search = document.getElementById('convSearch').value.toUpperCase();
         const minB = parseInt(document.getElementById('convMinBlocks').value);
         const view = document.getElementById('convView').value;
-        let f = cs.filter(c => (!search || c.symbol.includes(search)) && c.n_blocks >= minB);
+        const mineOnly = document.getElementById('convMineOnly').checked;
+        let f = cs.filter(c => (!search || c.symbol.includes(search))
+            && (mineOnly ? MY_HOLDINGS[c.symbol] != null : c.n_blocks >= minB));
         if (view === 'bottom') f = f.slice().reverse();
-        document.getElementById('convCount').textContent = f.length + ' stocks';
+        document.getElementById('convCount').textContent = f.length + ' stocks' + (mineOnly ? ' (my book)' : '');
 
         const rows = f.slice(0,100).map((c,i)=>{
             const rank = view === 'bottom' ? f.length - i : i + 1;
             const agr = (c.agreement*100).toFixed(0)+'%';
             const a = attribution(c);   // {pill, bar} — the "why" behind the score
+            const held = MY_HOLDINGS[c.symbol] != null;
+            const symCell = held
+                ? `<td class="script-name" style="background:var(--golddim);font-weight:700">📍 ${c.symbol}</td>`
+                : `<td class="script-name">${c.symbol}</td>`;
             return `<td class="mono" style="color:var(--fg3)">${rank}</td>
-                <td class="script-name">${c.symbol}</td>
+                ${symCell}
                 <td class="r" style="font-weight:700;font-family:'JetBrains Mono',monospace;color:${c.conviction>=50?'var(--up)':'var(--dn)'}">${fmt(c.conviction,1)}</td>
                 <td>${a.pill}</td>
                 <td>${a.bar}</td>
@@ -1372,6 +1425,7 @@ function renderConviction() {
     document.getElementById('convSearch').addEventListener('input', renderTable);
     document.getElementById('convMinBlocks').addEventListener('change', renderTable);
     document.getElementById('convView').addEventListener('change', renderTable);
+    document.getElementById('convMineOnly').addEventListener('change', renderTable);
     renderTable();
 }
 

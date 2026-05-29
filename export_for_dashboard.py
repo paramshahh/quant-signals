@@ -159,6 +159,14 @@ def export_all():
         n = _to_json(ms, EXPORT_DIR / "master_score.json")
         print(f"  master_score: {n} rows")
 
+    # ── Company sectors (AMFI macro) — for the portfolio concentration overlay ──
+    try:
+        secs = con.execute("SELECT symbol, macro_sector FROM company_sectors WHERE macro_sector IS NOT NULL").fetchdf()
+        n = _to_json(secs, EXPORT_DIR / "company_sectors.json")
+        print(f"  company_sectors: {n} rows")
+    except Exception as e:
+        print(f"  company_sectors: skipped ({e})")
+
     # ── Conviction Score (unified composite) ──
     cs_path = Path("data/conviction_score.parquet")
     if cs_path.exists():
