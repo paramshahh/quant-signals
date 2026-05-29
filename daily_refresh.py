@@ -91,6 +91,10 @@ def load_to_db():
 def compute_signals():
     steps = [
         (
+            "Total Return Index (corporate-action price adjustment)",
+            [sys.executable, "-m", "src.processing.total_return_index"],
+        ),
+        (
             "Signal 1: CADP (pre-earnings delivery)",
             [sys.executable, "-m", "src.signals.cadp"],
         ),

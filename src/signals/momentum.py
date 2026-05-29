@@ -50,7 +50,7 @@ def _find_anchor_date(con, max_gap_days: int = 10):
     the dense history by a long ingestion gap; anchoring at the end of the last
     well-populated block keeps every lookback comparison gap-free."""
     dates = con.execute(
-        "SELECT DISTINCT trade_date FROM equity_daily WHERE series='EQ' ORDER BY trade_date"
+        "SELECT DISTINCT trade_date FROM adjusted_prices ORDER BY trade_date"
     ).fetchdf()["trade_date"]
     dates = pd.to_datetime(dates).reset_index(drop=True)
     gap = dates.diff().dt.days.fillna(0)
@@ -79,15 +79,18 @@ def compute_momentum(
     anchor_str = pd.Timestamp(anchor).date().isoformat()
     print(f"  Anchor date (last continuous block): {anchor_str}")
 
-    # ~420 calendar days ≈ 280 trading days: enough for 252d lookback + buffer
+    # ~420 calendar days ≈ 280 trading days: enough for 252d lookback + buffer.
+    # adj_close is split/bonus-adjusted (Total Return Index engine) so a corporate
+    # action no longer reads as a phantom crash in the momentum lookbacks.
+    # canonical_symbol groups the series by ISIN identity (bridges ticker renames);
+    # adj_close is corporate-action adjusted (no phantom split/bonus/demerger crashes).
     df = con.execute(f"""
-        SELECT trade_date, symbol, close, turnover
-        FROM equity_daily
-        WHERE series = 'EQ'
-          AND close > 0
+        SELECT trade_date, canonical_symbol AS symbol, adj_close AS close, turnover
+        FROM adjusted_prices
+        WHERE adj_close > 0
           AND trade_date <= DATE '{anchor_str}'
           AND trade_date >= DATE '{anchor_str}' - INTERVAL 420 DAY
-        ORDER BY symbol, trade_date
+        ORDER BY canonical_symbol, trade_date
     """).fetchdf()
 
     if should_close:
