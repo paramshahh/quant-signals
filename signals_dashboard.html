@@ -990,7 +990,9 @@ function makeTable(headers, rows) {
     let h = '<table class="pos-table"><thead><tr>';
     headers.forEach(col => {
         const t = col.tip ? tip(col.tip) : '';
-        h += `<th${col.align==='r'?' class="r"':''}>${col.label}${t}</th>`;
+        const cls = col.align === 'r' ? ' class="r"' : '';
+        const sortAttr = col.sort ? ` data-sort="${col.sort}" style="cursor:pointer;user-select:none"` : '';
+        h += `<th${cls}${sortAttr}>${col.label}${t}</th>`;
     });
     h += '</tr></thead><tbody>';
     rows.forEach(r => { h += '<tr>' + r + '</tr>'; });
@@ -1003,6 +1005,7 @@ let macroChartInstance = null;
 let divChartInstance = null;
 let breadthChartInstance = null;
 let bookConvChartInstance = null;
+let convSort = { col: 'conviction', dir: 'desc' };   // Conviction table sort (header-clickable)
 
 function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
 
@@ -1411,10 +1414,15 @@ function renderConviction() {
         return pos.length ? pos.reduce((a,b) => b.z > a.z ? b : a).label : null;
     }
 
+    const sortVal = (c, col) => {
+        if (col === 'symbol') return c.symbol || '';
+        if (col === 'driver') return driverOf(c) || '';
+        return c[col];   // conviction, b_*, n_blocks, agreement
+    };
+
     function renderTable() {
         const search = document.getElementById('convSearch').value.toUpperCase();
         const minB = parseInt(document.getElementById('convMinBlocks').value);
-        const view = document.getElementById('convView').value;
         const mineOnly = document.getElementById('convMineOnly').checked;
         const driver = document.getElementById('convDriver').value;
         const sector = document.getElementById('convSector').value;
@@ -1422,11 +1430,18 @@ function renderConviction() {
             && (mineOnly ? MY_HOLDINGS[c.symbol] != null : c.n_blocks >= minB)
             && (!driver || driverOf(c) === driver)
             && (!sector || SECMAP[c.symbol] === sector));
-        if (view === 'bottom') f = f.slice().reverse();
+        // sort by the active column (header-clickable)
+        f = f.slice().sort((a,b)=>{
+            const va = sortVal(a, convSort.col), vb = sortVal(b, convSort.col);
+            let cmp = (typeof va === 'string')
+                ? String(va).localeCompare(String(vb))
+                : ((va==null?-Infinity:va) - (vb==null?-Infinity:vb));
+            return convSort.dir === 'desc' ? -cmp : cmp;
+        });
         document.getElementById('convCount').textContent = f.length + ' stocks' + (mineOnly ? ' (my book)' : '');
 
         const rows = f.slice(0,100).map((c,i)=>{
-            const rank = view === 'bottom' ? f.length - i : i + 1;
+            const rank = i + 1;
             const agr = (c.agreement*100).toFixed(0)+'%';
             const a = attribution(c);   // {pill, bar} — the "why" behind the score
             const held = MY_HOLDINGS[c.symbol] != null;
@@ -1442,20 +1457,43 @@ function renderConviction() {
                 <td class="r mono">${c.n_blocks}</td>
                 <td class="r mono">${agr}</td>`;
         });
+        // active-column arrow
+        const A = s => s === convSort.col ? (convSort.dir === 'desc' ? ' ▼' : ' ▲') : '';
+        const H = (label, sort, opts={}) => ({label: label + A(sort), sort, ...opts});
         document.getElementById('convTable').innerHTML = makeTable(
-            [{label:'#'},{label:'Symbol'},{label:'Conviction',align:'r',tip:'conv_score'},
-             {label:'Driver',tip:'conv_driver'},{label:'Attribution',tip:'conv_attrib'},
-             {label:'Earn',align:'r',tip:'b_earnings'},{label:'Value',align:'r',tip:'b_value'},
-             {label:'Qual',align:'r',tip:'b_quality'},{label:'Mom',align:'r',tip:'b_momentum'},{label:'Flow',align:'r',tip:'b_flow'},
-             {label:'Blk',align:'r',tip:'conv_nblocks'},{label:'Agree',align:'r',tip:'conv_agree'}], rows
+            [{label:'#'}, H('Symbol','symbol'), H('Conviction','conviction',{align:'r',tip:'conv_score'}),
+             H('Driver','driver',{tip:'conv_driver'}), {label:'Attribution',tip:'conv_attrib'},
+             H('Earn','b_earnings',{align:'r',tip:'b_earnings'}), H('Value','b_value',{align:'r',tip:'b_value'}),
+             H('Qual','b_quality',{align:'r',tip:'b_quality'}), H('Mom','b_momentum',{align:'r',tip:'b_momentum'}),
+             H('Flow','b_flow',{align:'r',tip:'b_flow'}),
+             H('Blk','n_blocks',{align:'r',tip:'conv_nblocks'}), H('Agree','agreement',{align:'r',tip:'conv_agree'})], rows
         );
     }
+    window._convRenderTable = renderTable;   // stable ref so the once-bound header listener always calls the latest
     document.getElementById('convSearch').addEventListener('input', renderTable);
     document.getElementById('convMinBlocks').addEventListener('change', renderTable);
-    document.getElementById('convView').addEventListener('change', renderTable);
+    document.getElementById('convView').addEventListener('change', () => {
+        convSort = {col:'conviction', dir: document.getElementById('convView').value === 'bottom' ? 'asc' : 'desc'};
+        renderTable();
+    });
     document.getElementById('convMineOnly').addEventListener('change', renderTable);
     document.getElementById('convDriver').addEventListener('change', renderTable);
     document.getElementById('convSector').addEventListener('change', renderTable);
+
+    // header-click sorting (delegated, bound once on the persistent container)
+    const tEl = document.getElementById('convTable');
+    if (!tEl.dataset.sortBound) {
+        tEl.addEventListener('click', e => {
+            if (e.target.closest('.htip-icon')) return;          // don't sort when clicking the ? tooltip
+            const th = e.target.closest('th[data-sort]');
+            if (!th) return;
+            const col = th.dataset.sort;
+            if (convSort.col === col) convSort.dir = convSort.dir === 'desc' ? 'asc' : 'desc';
+            else convSort = {col, dir: col === 'symbol' ? 'asc' : 'desc'};
+            window._convRenderTable();
+        });
+        tEl.dataset.sortBound = '1';
+    }
     renderTable();
 }
 
